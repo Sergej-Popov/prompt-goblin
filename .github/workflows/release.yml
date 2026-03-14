@@ -123,13 +123,18 @@ jobs:
     name: Build (${{ matrix.os }})
     needs: prepare
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: src-tauri/target
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - windows-latest
-          - macos-latest
-          - ubuntu-22.04
+        include:
+          - os: windows-latest
+            bundles: nsis
+          - os: macos-latest
+            bundles: dmg
+          - os: ubuntu-22.04
+            bundles: deb,appimage
 
     steps:
       - name: Checkout release tag
@@ -158,6 +163,7 @@ jobs:
             libasound2-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
+            libfuse2 \
             patchelf
 
       - name: Install dependencies
@@ -191,7 +197,17 @@ jobs:
         run: bun run build
 
       - name: Build Tauri app
-        run: bun run tauri build
+        run: bun run tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Show generated bundle files
+        shell: pwsh
+        run: |
+          if (Test-Path 'src-tauri/target/release/bundle') {
+            Get-ChildItem -Path 'src-tauri/target/release/bundle' -Recurse | Select-Object FullName
+          }
+          else {
+            Write-Host 'Bundle directory does not exist: src-tauri/target/release/bundle'
+          }
 
       - name: Upload bundle artifacts
         uses: actions/upload-artifact@v4
