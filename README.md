@@ -57,3 +57,10 @@ Please provide a balanced level of detail: enough context and requirements to ma
 This process ensures implementation is done by a trusted AI agent run by the repository maintainer, and is required for security reasons.
 
 Direct pull requests are not accepted. Start with an issue first.
+
+## Platform Testing Status
+
+Windows is the primary tested platform at the moment.
+MacOS and Ubuntu builds are not yet tested.
+
+If you test on MacOS or Ubuntu, please submit an issue with reproduction steps, environment details, logs, and screenshots etc.
