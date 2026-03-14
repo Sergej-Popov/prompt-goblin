@@ -9,9 +9,14 @@
   </head>
   <body>
     <div class="overlay-pill" id="overlay-pill">
-      <div class="recording-dot" id="recording-dot"></div>
-      <span class="overlay-label" id="overlay-label">Listening...</span>
-      <span class="overlay-timer" id="overlay-timer">0:00</span>
+      <div class="overlay-main-row" id="overlay-main-row">
+        <div class="recording-dot" id="recording-dot"></div>
+        <span class="overlay-label" id="overlay-label">Listening...</span>
+        <span class="overlay-timer" id="overlay-timer">0:00</span>
+      </div>
+      <div class="overlay-wave-wrap" id="overlay-wave-wrap">
+        <canvas id="overlay-wave-canvas" height="28"></canvas>
+      </div>
     </div>
     <div class="overlay-transcript" id="overlay-transcript"></div>
   </body>

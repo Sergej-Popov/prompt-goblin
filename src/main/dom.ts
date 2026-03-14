@@ -8,12 +8,15 @@ export type ConnectionStatus =
   | "untested";
 
 export interface MainDom {
+  sttProviderSelect: HTMLSelectElement;
   apiKeyInput: HTMLInputElement;
   hotkeyInput: HTMLInputElement;
   liveModelSelect: HTMLSelectElement;
   refreshModelsBtn: HTMLButtonElement;
   liveModelHint: HTMLElement;
   microphoneSelect: HTMLSelectElement;
+  recordingLoudnessInput: HTMLInputElement;
+  recordingLoudnessValue: HTMLElement;
   refreshMicrophonesBtn: HTMLButtonElement;
   micTestBtn: HTMLButtonElement;
   micTestStatus: HTMLElement;
@@ -57,11 +60,14 @@ function byIdOptional<T extends HTMLElement>(doc: Document, id: string): T | nul
 export function getMainDom(doc: Document): MainDom {
   return {
     apiKeyInput: byId<HTMLInputElement>(doc, "api-key-input"),
+    sttProviderSelect: byId<HTMLSelectElement>(doc, "stt-provider-select"),
     hotkeyInput: byId<HTMLInputElement>(doc, "hotkey-input"),
     liveModelSelect: byId<HTMLSelectElement>(doc, "live-model-select"),
     refreshModelsBtn: byId<HTMLButtonElement>(doc, "refresh-models-btn"),
     liveModelHint: byId<HTMLElement>(doc, "live-model-hint"),
     microphoneSelect: byId<HTMLSelectElement>(doc, "microphone-select"),
+    recordingLoudnessInput: byId<HTMLInputElement>(doc, "recording-loudness"),
+    recordingLoudnessValue: byId<HTMLElement>(doc, "recording-loudness-value"),
     refreshMicrophonesBtn: byId<HTMLButtonElement>(doc, "refresh-microphones-btn"),
     micTestBtn: byId<HTMLButtonElement>(doc, "mic-test-btn"),
     micTestStatus: byId<HTMLElement>(doc, "mic-test-status"),
@@ -93,12 +99,13 @@ export function getMainDom(doc: Document): MainDom {
 }
 
 export function populateUI(dom: MainDom, settings: Settings) {
-  dom.apiKeyInput.value = settings.geminiApiKey;
+  dom.sttProviderSelect.value = settings.sttProvider;
+  dom.apiKeyInput.value = settings.providers[settings.sttProvider].apiKey;
   dom.hotkeyInput.value = settings.hotkey;
   dom.debugLoggingCheckbox.checked = settings.debugLoggingEnabled;
 
-  const cachedModels = settings.modelCache?.models ?? [];
-  populateLiveModelOptions(dom, cachedModels, settings.selectedLiveModel);
+  const cachedModels = settings.providers[settings.sttProvider].modelCache?.models ?? [];
+  populateLiveModelOptions(dom, cachedModels, settings.providers[settings.sttProvider].selectedModel);
   if (cachedModels.length === 0) {
     setLiveModelHint(dom, "No cached models yet. Click Refresh to load from API.");
   }
@@ -112,6 +119,8 @@ export function populateUI(dom: MainDom, settings: Settings) {
   dom.silenceTimeoutField.style.display = settings.autoStopOnSilence ? "flex" : "none";
   dom.silenceTimeoutInput.value = String(settings.autoStopSilenceMs / 1000);
   dom.languageSelect.value = settings.language;
+  dom.recordingLoudnessInput.value = String(settings.recordingLoudness);
+  dom.recordingLoudnessValue.textContent = `${Math.round(settings.recordingLoudness)}%`;
 }
 
 export function setLiveModelHint(dom: MainDom, text: string) {

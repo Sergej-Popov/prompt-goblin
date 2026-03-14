@@ -30,14 +30,25 @@
       </div>
 
       <section class="settings-section">
+        <h2>Speech Provider</h2>
+        <div class="field">
+          <select id="stt-provider-select">
+            <option value="gemini">Gemini</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+        <p class="hint">Choose the transcription backend used for recording and mic test.</p>
+      </section>
+
+      <section class="settings-section">
         <div class="section-heading-row">
-          <h2>GEMINI API KEY</h2>
+          <h2>API KEY</h2>
           <button
             id="api-key-help-btn"
             class="icon-btn help-btn"
             type="button"
-            title="How to get a Gemini API key"
-            aria-label="How to get a Gemini API key"
+            title="How to get an API key"
+            aria-label="How to get an API key"
           >
             ?
           </button>
@@ -46,7 +57,7 @@
           <input
             type="password"
             id="api-key-input"
-            placeholder="Paste your Gemini API key..."
+            placeholder="Paste your API key..."
             spellcheck="false"
             autocomplete="off"
           />
@@ -74,7 +85,7 @@
           </button>
         </div>
         <p class="hint" id="live-model-hint">
-          Choose a live model for transcription. The list is fetched from Gemini API.
+          Choose a model for transcription. The list is fetched from the selected provider.
         </p>
       </section>
 
@@ -105,6 +116,19 @@
         <p class="hint">
           Pick the input device used for recording. If unavailable, default input is used.
         </p>
+        <div class="inline-field mic-loudness-field">
+          <label for="recording-loudness">Recording loudness</label>
+          <input
+            type="range"
+            id="recording-loudness"
+            min="25"
+            max="300"
+            step="5"
+            value="100"
+          />
+          <span class="unit" id="recording-loudness-value">100%</span>
+        </div>
+        <p class="hint">Boosts mic input before transcription. Start around 120-150% if speech is too quiet.</p>
         <div class="mic-test-panel">
           <div class="mic-wave-wrap">
             <canvas id="mic-wave-canvas" height="64"></canvas>
@@ -218,7 +242,7 @@
           aria-labelledby="api-key-help-title"
         >
           <div class="modal-header">
-            <h3 id="api-key-help-title">Get a Gemini API key</h3>
+            <h3 id="api-key-help-title">Get an API key</h3>
             <button
               id="close-api-key-help-btn"
               class="icon-btn modal-close-btn"
@@ -229,9 +253,9 @@
             </button>
           </div>
           <ol class="modal-list">
-            <li>Go to Google AI Studio (aistudio.google.com/apikey).</li>
-            <li>Sign in, then click <strong>Create API key</strong>.</li>
-            <li>Copy the key and paste it into the Gemini API key field.</li>
+            <li>For Gemini, go to Google AI Studio (aistudio.google.com/apikey).</li>
+            <li>For OpenAI, go to platform.openai.com/api-keys.</li>
+            <li>Generate a key and paste it into the API key field.</li>
             <li>Click <strong>Test</strong> to confirm the key works.</li>
           </ol>
           <p class="hint">Keep your API key private and never share it publicly.</p>

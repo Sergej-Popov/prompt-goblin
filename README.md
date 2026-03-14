@@ -1,12 +1,16 @@
 # Prompt Goblin
 
-Voice-to-text desktop app powered by Gemini, built with Tauri + Vanilla TypeScript.
+Voice-to-text desktop app with pluggable providers (Gemini + OpenAI), built with Tauri + Vanilla TypeScript.
 > Goblin note: screaming, yapping, and dramatic rambling all count as valid "speaking" in this establishment.
 
 ## Disclaimer
 
 This project was created with an AI coding agent.
 Development was done using OpenCode with a mixture of models, predominantly GPT-5.3 Codex and Claude Opus 4.6.
+
+## STT Models
+
+Gemini 2.5 Flash Native Audio Preview 12-2025 is currently the model that performs bests.
 
 ## Prerequisites
 

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "bun run test:unit",
-    "test:unit": "bun test tests/gemini.test.ts tests/main-utils.test.ts tests/main-model-cache.test.ts",
+    "test:unit": "bun test tests/gemini.test.ts tests/main-utils.test.ts tests/main-model-cache.test.ts tests/stt-service.test.ts tests/openai-provider.test.ts",
     "test:integration": "bun test tests/gemini.integration.test.ts",
     "preview": "vite preview",
     "tauri": "tauri"

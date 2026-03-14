@@ -1,14 +1,13 @@
-import type { Settings } from "../settings";
+import type { ProviderModelCache } from "../settings";
 
 export const MODEL_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
 export function isModelCacheFresh(
-  settings: Settings,
+  cache: ProviderModelCache | null,
   apiKeyFingerprint: string,
   now = Date.now(),
   ttlMs = MODEL_CACHE_TTL_MS
 ): boolean {
-  const cache = settings.modelCache;
   return !!(
     cache &&
     cache.apiKeyFingerprint === apiKeyFingerprint &&

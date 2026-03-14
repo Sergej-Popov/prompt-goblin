@@ -8,14 +8,24 @@ import {
 } from "@tauri-apps/plugin-global-shortcut";
 import {
   loadSettings,
-  saveLastKnownGoodLiveModel,
+  saveProviderLastKnownGoodModel,
   type Settings,
 } from "./settings";
-import { transcriber } from "./gemini";
 import { debugLog, isDebugLoggingEnabled } from "./logger";
+import {
+  createLiveTranscriber,
+  getProviderApiKey,
+  getProviderFallbackModels,
+  getProviderLabel,
+  getProviderSelectedModel,
+} from "./stt/service";
+import type { LiveTranscriber } from "./stt/types";
 
 let isRecording = false;
 let settings: Settings;
+let transcriber: LiveTranscriber = createLiveTranscriber("gemini");
+let activeProvider: Settings["sttProvider"] = "gemini";
+let overlayListeningReady = false;
 
 // Silence detection state
 let lastSpeechTime = 0;
@@ -49,6 +59,46 @@ const STALL_RECOVERY_TRIGGER_MS = 8500;
 const STALL_RECOVERY_COOLDOWN_MS = 12000;
 const PERIODIC_AUDIO_TURN_BOUNDARY_MS = 12000;
 
+function ensureTranscriberForProvider() {
+  if (settings.sttProvider === activeProvider) {
+    return;
+  }
+
+  transcriber = createLiveTranscriber(settings.sttProvider);
+  transcriber.setCallbacks(onTranscript, onStatus);
+  activeProvider = settings.sttProvider;
+}
+
+function configureTranscriberFromSettings() {
+  ensureTranscriberForProvider();
+  const apiKey = getProviderApiKey(settings);
+  if (!apiKey) {
+    return;
+  }
+
+  transcriber.configure({
+    apiKey,
+    language: settings.language,
+    preferredModel: getProviderSelectedModel(settings),
+    fallbackModels: getProviderFallbackModels(settings),
+  });
+}
+
+function providerLabelForLogs(): string {
+  return getProviderLabel(settings.sttProvider);
+}
+
+async function emitOverlayEvent(eventName: string, payload: Record<string, unknown> = {}) {
+  try {
+    const overlay = await WebviewWindow.getByLabel("overlay");
+    if (overlay) {
+      await overlay.emit(eventName, payload);
+    }
+  } catch {
+    // best-effort overlay messaging
+  }
+}
+
 function previewText(text: string, maxLen = 140): string {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) {
@@ -63,14 +113,7 @@ export async function initApp() {
   settings = await loadSettings();
 
   // Configure transcriber
-  if (settings.geminiApiKey) {
-    transcriber.configure(
-      settings.geminiApiKey,
-      settings.language,
-      settings.selectedLiveModel,
-      settings.modelCache?.models ?? []
-    );
-  }
+  configureTranscriberFromSettings();
 
   // Set up transcription callbacks
   transcriber.setCallbacks(onTranscript, onStatus);
@@ -132,7 +175,7 @@ export async function initApp() {
       }
     }
 
-    // Send audio to Gemini
+    // Send audio to active provider
     transcriber.sendAudio(data);
 
     // Silence detection for auto-stop
@@ -185,11 +228,14 @@ async function toggleRecording() {
 }
 
 async function startRecording() {
-  if (!settings.geminiApiKey) {
+  const providerApiKey = getProviderApiKey(settings);
+  if (!providerApiKey) {
     console.error("No API key configured");
-    debugLog("Start recording blocked: API key missing", "WARN");
+    debugLog(`${providerLabelForLogs()} start blocked: API key missing`, "WARN");
     return;
   }
+
+  configureTranscriberFromSettings();
 
   isRecording = true;
   recordingStartedAt = Date.now();
@@ -212,42 +258,57 @@ async function startRecording() {
   recoveryAttemptCount = 0;
   recoverySuccessCount = 0;
   recoveryFailureCount = 0;
+  overlayListeningReady = false;
   transcriber.resetTranscript();
 
   debugLog(
-    `Starting recording: device='${settings.microphoneDeviceId}', typingMode='${settings.typingMode}', autoStop=${settings.autoStopOnSilence}, silenceMs=${settings.autoStopSilenceMs}`,
+    `Starting recording: device='${settings.microphoneDeviceId}', loudness=${settings.recordingLoudness}%, typingMode='${settings.typingMode}', autoStop=${settings.autoStopOnSilence}, silenceMs=${settings.autoStopSilenceMs}`,
     "INFO"
   );
 
-  // Show overlay
+  // Show overlay in loading state immediately
   try {
     const overlay = await WebviewWindow.getByLabel("overlay");
     if (overlay) {
       await overlay.show();
-      await overlay.emit("recording-started", {});
+      await overlay.emit("recording-started", { state: "loading" });
     }
   } catch (err) {
     console.error("Failed to show overlay:", err);
   }
 
-  // Connect to Gemini and start recording
-  await transcriber.connect();
-  debugLog(`Gemini session connected state after connect() call: ${transcriber.isConnected()}`, "INFO");
+  // Start audio capture first, then connect provider so early speech is buffered.
   try {
     await invoke("start_recording", {
       deviceId: settings.microphoneDeviceId,
+      inputGain: settings.recordingLoudness / 100,
     });
-    const activeModel = transcriber.getActiveLiveModel();
-    settings.lastKnownGoodLiveModel = activeModel;
-    saveLastKnownGoodLiveModel(activeModel).catch(() => {
+
+    await transcriber.connect();
+    debugLog(
+      `${providerLabelForLogs()} session connected state after connect() call: ${transcriber.isConnected()}`,
+      "INFO"
+    );
+
+    if (transcriber.isConnected() && !overlayListeningReady) {
+      overlayListeningReady = true;
+      await emitOverlayEvent("recording-ready", { state: "listening" });
+    }
+
+    const activeModel = transcriber.getActiveModel();
+    settings.providers[settings.sttProvider].lastKnownGoodModel = activeModel;
+    saveProviderLastKnownGoodModel(settings.sttProvider, activeModel).catch(() => {
       // ignore best-effort cache update failures
     });
     debugLog(`Recording started with device '${settings.microphoneDeviceId}'`, "INFO");
-    debugLog(`Recording uses live model '${activeModel}'`, "INFO");
+    debugLog(
+      `Recording uses ${providerLabelForLogs()} model '${activeModel}'`,
+      "INFO"
+    );
 
     if (!transcriber.isConnected()) {
       debugLog(
-        "Gemini disconnected immediately after recording start; stopping capture",
+        `${providerLabelForLogs()} disconnected immediately after recording start; stopping capture`,
         "WARN"
       );
       await stopRecording();
@@ -256,6 +317,7 @@ async function startRecording() {
     console.error("Failed to start recording:", err);
     debugLog(`Failed to start recording: ${String(err)}`, "ERROR");
     isRecording = false;
+    await emitOverlayEvent("recording-stopped", {});
   }
 }
 
@@ -303,7 +365,7 @@ async function stopRecording() {
     }
   }
 
-  // Disconnect from Gemini
+  // Disconnect from provider
   await transcriber.disconnect();
 
   // Hide overlay
@@ -342,6 +404,7 @@ async function stopRecording() {
   recoveryAttemptCount = 0;
   recoverySuccessCount = 0;
   recoveryFailureCount = 0;
+  overlayListeningReady = false;
 }
 
 async function recoverFromTranscriptStall(stalledForMs: number) {
@@ -362,7 +425,9 @@ async function recoverFromTranscriptStall(stalledForMs: number) {
   try {
     await transcriber.reconnectForRecovery();
     if (!transcriber.isConnected()) {
-      throw new Error("Gemini recovery reconnect completed but session is not connected");
+      throw new Error(
+        `${providerLabelForLogs()} recovery reconnect completed but session is not connected`
+      );
     }
 
     recoverySuccessCount += 1;
@@ -475,10 +540,16 @@ function onStatus(
   message?: string
 ) {
   debugLog(
-    `Gemini status: ${status}${message ? ` (${message})` : ""}`,
+    `${providerLabelForLogs()} status: ${status}${message ? ` (${message})` : ""}`,
     status === "error" ? "ERROR" : "INFO"
   );
+  emit("stt-status", { status, message, provider: settings.sttProvider });
   emit("gemini-status", { status, message });
+
+  if (status === "connected" && isRecording && !overlayListeningReady) {
+    overlayListeningReady = true;
+    void emitOverlayEvent("recording-ready", { state: "listening" });
+  }
 
   if (
     (status === "disconnected" || status === "error") &&
@@ -487,7 +558,7 @@ function onStatus(
     !stoppingDueToDisconnect
   ) {
     stoppingDueToDisconnect = true;
-    debugLog("Gemini dropped during recording; auto-stopping capture", "WARN");
+    debugLog(`${providerLabelForLogs()} dropped during recording; auto-stopping capture`, "WARN");
     stopRecording()
       .catch((err) => {
         debugLog(`Auto-stop after disconnect failed: ${String(err)}`, "ERROR");
@@ -503,14 +574,7 @@ export function reloadSettings(newSettings: Settings) {
   settings = newSettings;
 
   // Reconfigure transcriber
-  if (settings.geminiApiKey) {
-    transcriber.configure(
-      settings.geminiApiKey,
-      settings.language,
-      settings.selectedLiveModel,
-      settings.modelCache?.models ?? []
-    );
-  }
+  configureTranscriberFromSettings();
 
   // Re-register hotkey if changed
   if (oldHotkey !== settings.hotkey) {

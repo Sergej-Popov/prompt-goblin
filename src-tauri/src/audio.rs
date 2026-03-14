@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::{
     fs::{self, File},
     io::{Seek, SeekFrom, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -81,6 +81,7 @@ struct DebugAudioCapture {
 }
 
 const EMIT_PCM_CHUNK_BYTES: usize = 640;
+const MAX_DEBUG_AUDIO_RECORDINGS: usize = 10;
 
 #[derive(Clone, Serialize)]
 struct AudioChunkPayload {
@@ -143,7 +144,11 @@ pub fn list_input_devices() -> Result<Vec<InputDeviceInfo>, String> {
 }
 
 #[tauri::command]
-pub fn start_mic_monitoring(app: AppHandle, device_id: Option<String>) -> Result<(), String> {
+pub fn start_mic_monitoring(
+    app: AppHandle,
+    device_id: Option<String>,
+    input_gain: Option<f32>,
+) -> Result<(), String> {
     let state = app.state::<AudioState>();
 
     if state.is_recording.load(Ordering::SeqCst) {
@@ -162,6 +167,7 @@ pub fn start_mic_monitoring(app: AppHandle, device_id: Option<String>) -> Result
 
     let source_channels = default_config.channels() as usize;
     let source_sample_rate = default_config.sample_rate().0;
+    let gain = input_gain.unwrap_or(1.0).clamp(0.25, 3.0);
     let config = cpal::StreamConfig {
         channels: default_config.channels(),
         sample_rate: default_config.sample_rate(),
@@ -185,13 +191,15 @@ pub fn start_mic_monitoring(app: AppHandle, device_id: Option<String>) -> Result
                     if !is_monitoring_clone.load(Ordering::SeqCst) {
                         return;
                     }
+                    let gained: Vec<f32> =
+                        data.iter().map(|s| (*s * gain).clamp(-1.0, 1.0)).collect();
                     collect_monitor_samples(
-                        data,
+                        &gained,
                         source_channels,
                         max_monitor_samples,
                         &samples_clone,
                     );
-                    emit_mic_level(data, source_channels, &last_emit_clone, &app_handle);
+                    emit_mic_level(&gained, source_channels, &last_emit_clone, &app_handle);
                 },
                 |err| eprintln!("Mic monitor stream error: {}", err),
                 None,
@@ -206,7 +214,10 @@ pub fn start_mic_monitoring(app: AppHandle, device_id: Option<String>) -> Result
                     if !is_monitoring_clone.load(Ordering::SeqCst) {
                         return;
                     }
-                    let float_data: Vec<f32> = data.iter().map(|&s| s as f32 / 32768.0).collect();
+                    let float_data: Vec<f32> = data
+                        .iter()
+                        .map(|&s| (s as f32 / 32768.0 * gain).clamp(-1.0, 1.0))
+                        .collect();
                     collect_monitor_samples(
                         &float_data,
                         source_channels,
@@ -298,7 +309,11 @@ fn stop_mic_monitoring_internal(
 /// Start recording from the selected input device (or default).
 /// Audio is captured as 16kHz mono PCM16 and emitted as base64 chunks.
 #[tauri::command]
-pub fn start_recording(app: AppHandle, device_id: Option<String>) -> Result<(), String> {
+pub fn start_recording(
+    app: AppHandle,
+    device_id: Option<String>,
+    input_gain: Option<f32>,
+) -> Result<(), String> {
     let state = app.state::<AudioState>();
 
     if state.is_recording.load(Ordering::SeqCst) {
@@ -318,6 +333,7 @@ pub fn start_recording(app: AppHandle, device_id: Option<String>) -> Result<(), 
 
     // We want 16kHz mono PCM16 for Gemini
     let target_sample_rate = 16000u32;
+    let gain = input_gain.unwrap_or(1.0).clamp(0.25, 3.0);
     let source_sample_rate = default_config.sample_rate().0;
     let source_channels = default_config.channels() as usize;
 
@@ -365,6 +381,7 @@ pub fn start_recording(app: AppHandle, device_id: Option<String>) -> Result<(), 
                         source_channels,
                         source_sample_rate,
                         target_sample_rate,
+                        gain,
                         &acc,
                         &app_handle,
                         &debug_capture_clone,
@@ -391,6 +408,7 @@ pub fn start_recording(app: AppHandle, device_id: Option<String>) -> Result<(), 
                         source_channels,
                         source_sample_rate,
                         target_sample_rate,
+                        gain,
                         &acc,
                         &app_handle,
                         &debug_capture_clone,
@@ -527,6 +545,7 @@ fn process_audio_f32(
     source_channels: usize,
     source_sample_rate: u32,
     target_sample_rate: u32,
+    gain: f32,
     accumulator: &Arc<Mutex<Vec<f32>>>,
     app: &AppHandle,
     debug_capture: &Arc<Mutex<Option<DebugAudioCapture>>>,
@@ -535,7 +554,10 @@ fn process_audio_f32(
     // Downmix to mono by averaging channels
     let mono: Vec<f32> = data
         .chunks(source_channels)
-        .map(|frame| frame.iter().sum::<f32>() / source_channels as f32)
+        .map(|frame| {
+            let mixed = frame.iter().sum::<f32>() / source_channels as f32;
+            (mixed * gain).clamp(-1.0, 1.0)
+        })
         .collect();
 
     // Simple linear resampling
@@ -710,6 +732,10 @@ fn create_debug_audio_capture(
     file.write_all(&[0u8; 44])
         .map_err(|e| format!("Failed to initialize debug audio file: {}", e))?;
 
+    if let Err(err) = prune_debug_audio_recordings(&audio_dir) {
+        eprintln!("Failed to prune debug audio recordings: {}", err);
+    }
+
     Ok(DebugAudioCapture {
         file,
         data_bytes: 0,
@@ -718,6 +744,72 @@ fn create_debug_audio_capture(
         bits_per_sample: 16,
         path,
     })
+}
+
+fn prune_debug_audio_recordings(audio_dir: &Path) -> Result<(), String> {
+    let mut entries = Vec::new();
+    let dir_iter = fs::read_dir(audio_dir)
+        .map_err(|e| format!("Failed to read debug audio directory: {}", e))?;
+
+    for item in dir_iter {
+        let entry = item.map_err(|e| format!("Failed to read debug audio entry: {}", e))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+
+        let Some(ts) = parse_debug_recording_timestamp(file_name) else {
+            continue;
+        };
+
+        let modified = entry
+            .metadata()
+            .ok()
+            .and_then(|metadata| metadata.modified().ok());
+        entries.push((path, modified, ts));
+    }
+
+    if entries.len() <= MAX_DEBUG_AUDIO_RECORDINGS {
+        return Ok(());
+    }
+
+    entries.sort_by(|a, b| {
+        if let (Some(a_modified), Some(b_modified)) = (&a.1, &b.1) {
+            let cmp = a_modified.cmp(b_modified);
+            if cmp != std::cmp::Ordering::Equal {
+                return cmp;
+            }
+        }
+
+        let ts_cmp = a.2.cmp(&b.2);
+        if ts_cmp != std::cmp::Ordering::Equal {
+            return ts_cmp;
+        }
+
+        a.0.cmp(&b.0)
+    });
+
+    let to_remove = entries.len().saturating_sub(MAX_DEBUG_AUDIO_RECORDINGS);
+    for (path, _, _) in entries.into_iter().take(to_remove) {
+        fs::remove_file(&path).map_err(|e| {
+            format!(
+                "Failed to remove old debug audio file '{}': {}",
+                path.display(),
+                e
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn parse_debug_recording_timestamp(file_name: &str) -> Option<u128> {
+    let ts = file_name.strip_prefix("recording-")?.strip_suffix(".wav")?;
+    ts.parse::<u128>().ok()
 }
 
 fn append_debug_audio_chunk(capture: &Arc<Mutex<Option<DebugAudioCapture>>>, pcm16_bytes: &[u8]) {

@@ -1,9 +1,14 @@
 import {
   getDefaultSettings,
+  getProviderApiKey as getProviderApiKeyFromSettings,
+  getProviderLastKnownGoodModel,
+  getProviderModelCache,
+  getProviderSelectedModel,
   loadSettings,
-  saveLastKnownGoodLiveModel,
-  saveModelCache,
+  saveProviderLastKnownGoodModel,
+  saveProviderModelCache,
   saveSettings,
+  type SttProvider,
   type Settings,
 } from "./settings";
 import { initApp, reloadSettings } from "./app";
@@ -17,12 +22,9 @@ import {
   openDebugLogFolder,
 } from "./logger";
 import {
-  fetchLiveModels,
-  probeLiveModelForTranscription,
-  transcribeWithLivePipeline,
-  validateApiKey,
-  validateLiveModel,
-} from "./gemini";
+  getProviderLabel,
+  getProviderRuntime,
+} from "./stt/service";
 import {
   getMainDom,
   populateLiveModelOptions as renderLiveModelOptions,
@@ -44,11 +46,14 @@ import { base64ToBytes, fingerprintApiKey, normalizeHotkey } from "./main/utils"
 // ── DOM Elements ────────────────────────────────────────────
 
 let apiKeyInput: HTMLInputElement;
+let sttProviderSelect: HTMLSelectElement;
 let hotkeyInput: HTMLInputElement;
 let liveModelSelect: HTMLSelectElement;
 let refreshModelsBtn: HTMLButtonElement;
 let liveModelHint: HTMLElement;
 let microphoneSelect: HTMLSelectElement;
+let recordingLoudnessInput: HTMLInputElement;
+let recordingLoudnessValue: HTMLElement;
 let refreshMicrophonesBtn: HTMLButtonElement;
 let micTestBtn: HTMLButtonElement;
 let micTestStatus: HTMLElement;
@@ -99,6 +104,29 @@ const MIC_ACTIVITY_RMS_THRESHOLD = 0.01;
 const MIC_TEST_DURATION_MS = 5000;
 const AUTOSAVE_DEBOUNCE_MS = 450;
 
+function getActiveProvider(): SttProvider {
+  return sttProviderSelect.value === "openai" ? "openai" : "gemini";
+}
+
+function getActiveProviderRuntime() {
+  return getProviderRuntime(getActiveProvider());
+}
+
+function getActiveProviderLabel(): string {
+  return getProviderLabel(getActiveProvider());
+}
+
+function updateApiKeyTextForProvider() {
+  const provider = getActiveProvider();
+  const keySectionTitle = document.querySelector(
+    ".settings-section .section-heading-row h2"
+  ) as HTMLElement | null;
+  if (keySectionTitle) {
+    keySectionTitle.textContent = `${getProviderLabel(provider).toUpperCase()} API KEY`;
+  }
+  apiKeyInput.placeholder = `Paste your ${getProviderLabel(provider)} API key...`;
+}
+
 let autosaveTimer: number | null = null;
 let saveStatusTimer: number | null = null;
 let saveInFlight = false;
@@ -118,11 +146,14 @@ window.addEventListener("DOMContentLoaded", async () => {
   dom = getMainDom(document);
   ({
     apiKeyInput,
+    sttProviderSelect,
     hotkeyInput,
     liveModelSelect,
     refreshModelsBtn,
     liveModelHint,
     microphoneSelect,
+    recordingLoudnessInput,
+    recordingLoudnessValue,
     refreshMicrophonesBtn,
     micTestBtn,
     micTestStatus,
@@ -153,6 +184,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Load settings
   currentSettings = await loadSettings();
   populateUI(currentSettings);
+  updateApiKeyTextForProvider();
   await refreshLiveModelList(false);
   await refreshMicrophoneList(currentSettings.microphoneDeviceId);
   await configureDebugLogging(currentSettings.debugLoggingEnabled);
@@ -167,13 +199,15 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Update status based on API key
   updateConnectionStatus(
-    currentSettings.geminiApiKey ? "untested" : "disconnected"
+    getProviderApiKeyFromSettings(currentSettings, currentSettings.sttProvider)
+      ? "untested"
+      : "disconnected"
   );
-  testApiKeyBtn.disabled = !currentSettings.geminiApiKey;
+  testApiKeyBtn.disabled = !getProviderApiKeyFromSettings(currentSettings, currentSettings.sttProvider);
 
   // Listen for status updates from the app
-  await listen<{ status: string; message?: string }>(
-    "gemini-status",
+  await listen<{ status: string; message?: string; provider?: SttProvider }>(
+    "stt-status",
     (event) => {
       updateConnectionStatus(
         event.payload.status as
@@ -228,6 +262,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 function populateUI(settings: Settings) {
   renderUI(dom, settings);
+  updateRecordingLoudnessValue();
 }
 
 function setupEventListeners() {
@@ -275,6 +310,17 @@ function setupEventListeners() {
     }
   });
 
+  sttProviderSelect.addEventListener("change", async () => {
+    currentSettings.sttProvider = getActiveProvider();
+    const providerSettings = currentSettings.providers[currentSettings.sttProvider];
+    apiKeyInput.value = providerSettings.apiKey;
+    updateApiKeyTextForProvider();
+    updateConnectionStatus(providerSettings.apiKey ? "untested" : "disconnected");
+    testApiKeyBtn.disabled = !providerSettings.apiKey;
+    await refreshLiveModelList(false);
+    scheduleAutosave(0);
+  });
+
   // Typing mode change
   typingModeRadios.forEach((radio) => {
     radio.addEventListener("change", () => {
@@ -311,6 +357,7 @@ function setupEventListeners() {
   });
 
   apiKeyInput.addEventListener("input", () => {
+    const provider = getActiveProvider();
     const apiKey = apiKeyInput.value.trim();
     testApiKeyBtn.disabled = !apiKey;
 
@@ -327,7 +374,7 @@ function setupEventListeners() {
       updateConnectionStatus("untested");
     }
 
-    const cache = currentSettings.modelCache;
+    const cache = currentSettings.providers[provider].modelCache;
     const fingerprint = fingerprintApiKey(apiKey);
     const cacheMatches =
       cache &&
@@ -356,6 +403,11 @@ function setupEventListeners() {
 
   refreshMicrophonesBtn.addEventListener("click", async () => {
     await refreshMicrophoneList(microphoneSelect.value || "default");
+  });
+
+  recordingLoudnessInput.addEventListener("input", () => {
+    updateRecordingLoudnessValue();
+    scheduleAutosave();
   });
 
   micTestBtn.addEventListener("click", async () => {
@@ -408,6 +460,9 @@ function populateLiveModelOptions(models: string[], preferredModel: string) {
 }
 
 async function refreshLiveModelList(forceApiRefresh: boolean) {
+  const provider = getActiveProvider();
+  const providerLabel = getActiveProviderLabel();
+  const providerRuntime = getActiveProviderRuntime();
   const apiKey = apiKeyInput.value.trim();
   if (!apiKey) {
     populateLiveModelOptions([], "");
@@ -417,61 +472,56 @@ async function refreshLiveModelList(forceApiRefresh: boolean) {
 
   const now = Date.now();
   const fingerprint = fingerprintApiKey(apiKey);
-  const cache = currentSettings.modelCache;
-  const cacheIsFresh = isModelCacheFresh(
-    currentSettings,
-    fingerprint,
-    now,
-    MODEL_CACHE_TTL_MS
-  );
+  const cache = currentSettings.providers[provider].modelCache;
+  const cacheIsFresh = isModelCacheFresh(cache, fingerprint, now, MODEL_CACHE_TTL_MS);
 
   if (!forceApiRefresh && cacheIsFresh && cache) {
     const preferred = selectPreferredModel(
       cache.models,
-      currentSettings.selectedLiveModel,
-      currentSettings.lastKnownGoodLiveModel
+      currentSettings.providers[provider].selectedModel,
+      currentSettings.providers[provider].lastKnownGoodModel
     );
     populateLiveModelOptions(cache.models, preferred);
     setLiveModelHint(`Loaded ${cache.models.length} models from cache.`);
-    debugLog(`Using cached live models (count=${cache.models.length})`, "INFO");
+    debugLog(`Using cached ${providerLabel} models (count=${cache.models.length})`, "INFO");
     return;
   }
 
   try {
     refreshModelsBtn.disabled = true;
-    setLiveModelHint("Fetching models from Gemini API...");
-    debugLog("Fetching live model list from Gemini API", "INFO");
-    const models = await fetchLiveModels(apiKey);
+    setLiveModelHint(`Fetching models from ${providerLabel} API...`);
+    debugLog(`Fetching model list from ${providerLabel} API`, "INFO");
+    const models = await providerRuntime.fetchModels(apiKey);
 
     if (models.length === 0) {
-      throw new Error("No live-compatible models returned by API");
+      throw new Error(`No ${providerLabel} transcription models returned by API`);
     }
 
     const preferred = selectPreferredModel(
       models,
-      currentSettings.selectedLiveModel,
-      currentSettings.lastKnownGoodLiveModel
+      currentSettings.providers[provider].selectedModel,
+      currentSettings.providers[provider].lastKnownGoodModel
     );
     populateLiveModelOptions(models, preferred);
 
-    currentSettings.modelCache = {
+    currentSettings.providers[provider].modelCache = {
       apiKeyFingerprint: fingerprint,
       fetchedAt: Date.now(),
       models,
     };
-    await saveModelCache(currentSettings.modelCache);
+    await saveProviderModelCache(provider, currentSettings.providers[provider].modelCache);
 
-    if (!models.includes(currentSettings.selectedLiveModel)) {
-      currentSettings.selectedLiveModel = selectPreferredModel(
+    if (!models.includes(currentSettings.providers[provider].selectedModel)) {
+      currentSettings.providers[provider].selectedModel = selectPreferredModel(
         models,
-        currentSettings.selectedLiveModel,
-        currentSettings.lastKnownGoodLiveModel
+        currentSettings.providers[provider].selectedModel,
+        currentSettings.providers[provider].lastKnownGoodModel
       );
-      liveModelSelect.value = currentSettings.selectedLiveModel;
+      liveModelSelect.value = currentSettings.providers[provider].selectedModel;
     }
 
     setLiveModelHint(`Loaded ${models.length} models from API.`);
-    debugLog(`Loaded live models from API (count=${models.length})`, "INFO");
+    debugLog(`Loaded ${providerLabel} models from API (count=${models.length})`, "INFO");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     setLiveModelHint(`Failed to load models: ${message}`);
@@ -517,6 +567,7 @@ async function startMicTest() {
     cleanupMicTestPlayback();
     await invoke("start_mic_monitoring", {
       deviceId: microphoneSelect.value || "default",
+      inputGain: getRecordingInputGain(),
     });
     micTestActive = true;
     micTestStartedAt = Date.now();
@@ -584,23 +635,29 @@ async function stopMicTest() {
 }
 
 async function transcribeMicTestRecording(wavBase64: string): Promise<string> {
+  const provider = getActiveProvider();
+  const providerRuntime = getActiveProviderRuntime();
   const apiKey = apiKeyInput.value.trim();
   if (!apiKey) {
-    return "API key required for transcription";
+    return `${getActiveProviderLabel()} API key required for transcription`;
   }
 
   try {
     const pcmChunksBase64 = await wavToPcmChunksBase64(wavBase64);
-    debugLog(`Mic test: prepared ${pcmChunksBase64.length} PCM chunks for live transcription`, "INFO");
+    debugLog(
+      `Mic test: prepared ${pcmChunksBase64.length} PCM chunks for ${getActiveProviderLabel()} live transcription`,
+      "INFO"
+    );
     if (pcmChunksBase64.length === 0) {
       return "";
     }
 
-    const transcript = await transcribeWithLivePipeline({
+    const transcript = await providerRuntime.transcribeWithLivePipeline({
       apiKey,
       language: languageSelect.value || "auto",
-      preferredLiveModel: liveModelSelect.value || currentSettings.selectedLiveModel,
-      fallbackLiveModels: currentSettings.modelCache?.models ?? [],
+      preferredModel:
+        liveModelSelect.value || currentSettings.providers[provider].selectedModel,
+      fallbackModels: currentSettings.providers[provider].modelCache?.models ?? [],
       pcmChunksBase64,
       settleDelayMs: 2200,
       chunkIntervalMs: 20,
@@ -610,7 +667,7 @@ async function transcribeMicTestRecording(wavBase64: string): Promise<string> {
   } catch (err) {
     console.error("Failed to transcribe mic test recording:", err);
     debugLog(`Mic test transcription failed: ${String(err)}`, "ERROR");
-    return "Transcription failed";
+    return `${getActiveProviderLabel()} transcription failed`;
   }
 }
 
@@ -799,6 +856,9 @@ function updateConnectionStatus(
 }
 
 async function handleApiKeyTest() {
+  const provider = getActiveProvider();
+  const providerRuntime = getActiveProviderRuntime();
+  const providerLabel = getActiveProviderLabel();
   const apiKey = apiKeyInput.value.trim();
   if (!apiKey) {
     updateConnectionStatus("disconnected");
@@ -815,17 +875,20 @@ async function handleApiKeyTest() {
 
     const selectedModel = liveModelSelect.value;
     if (!selectedModel) {
-      throw new Error("No live model selected");
+      throw new Error("No model selected");
     }
 
-    debugLog(`Testing API key with selected model '${selectedModel}'`, "INFO");
-    await validateApiKey(apiKey);
-    await validateLiveModel(apiKey, selectedModel);
-    await probeLiveModelForTranscription(apiKey, selectedModel);
+    debugLog(
+      `Testing ${providerLabel} API key with selected model '${selectedModel}'`,
+      "INFO"
+    );
+    await providerRuntime.validateApiKey(apiKey);
+    await providerRuntime.validateModel(apiKey, selectedModel);
+    await providerRuntime.probeModelForTranscription(apiKey, selectedModel);
 
     lastTestedApiKey = apiKey;
-    currentSettings.lastKnownGoodLiveModel = selectedModel;
-    await saveLastKnownGoodLiveModel(selectedModel);
+    currentSettings.providers[provider].lastKnownGoodModel = selectedModel;
+    await saveProviderLastKnownGoodModel(provider, selectedModel);
     updateConnectionStatus("connected");
     setLiveModelHint(`Model '${selectedModel}' validated successfully.`);
   } catch (err) {
@@ -857,6 +920,7 @@ function showSaveStatus(message: string, isError = false) {
 }
 
 function collectSettingsFromUI(): Settings {
+  const provider = getActiveProvider();
   const selectedMode = Array.from(typingModeRadios).find(
     (r) => r.checked
   )?.value;
@@ -867,19 +931,53 @@ function collectSettingsFromUI(): Settings {
       ? silenceSeconds * 1000
       : currentSettings.autoStopSilenceMs;
 
-  return {
-    geminiApiKey: apiKeyInput.value.trim(),
+  const recordingLoudnessPercent = Number.parseFloat(recordingLoudnessInput.value);
+  const recordingLoudness =
+    Number.isFinite(recordingLoudnessPercent) &&
+    recordingLoudnessPercent >= 25 &&
+    recordingLoudnessPercent <= 300
+      ? recordingLoudnessPercent
+      : currentSettings.recordingLoudness;
+
+  const nextSettings: Settings = {
+    ...currentSettings,
+    sttProvider: provider,
+    providers: {
+      gemini: { ...currentSettings.providers.gemini },
+      openai: { ...currentSettings.providers.openai },
+    },
     hotkey: normalizeHotkey(hotkeyInput.value),
     microphoneDeviceId: microphoneSelect.value || "default",
-    selectedLiveModel: liveModelSelect.value || currentSettings.selectedLiveModel,
-    lastKnownGoodLiveModel: currentSettings.lastKnownGoodLiveModel,
-    modelCache: currentSettings.modelCache,
+    recordingLoudness,
     debugLoggingEnabled: debugLoggingCheckbox.checked,
     typingMode: (selectedMode as Settings["typingMode"]) || "incremental",
     autoStopOnSilence: autoStopCheckbox.checked,
     autoStopSilenceMs,
     language: languageSelect.value,
   };
+
+  nextSettings.providers[provider].apiKey = apiKeyInput.value.trim();
+  nextSettings.providers[provider].selectedModel =
+    liveModelSelect.value || currentSettings.providers[provider].selectedModel;
+
+  return nextSettings;
+}
+
+function updateRecordingLoudnessValue() {
+  const percent = Number.parseFloat(recordingLoudnessInput.value);
+  if (!Number.isFinite(percent)) {
+    recordingLoudnessValue.textContent = "100%";
+    return;
+  }
+  recordingLoudnessValue.textContent = `${Math.round(percent)}%`;
+}
+
+function getRecordingInputGain() {
+  const percent = Number.parseFloat(recordingLoudnessInput.value);
+  if (!Number.isFinite(percent)) {
+    return 1;
+  }
+  return Math.min(3, Math.max(0.25, percent / 100));
 }
 
 function scheduleAutosave(delayMs = AUTOSAVE_DEBOUNCE_MS) {
@@ -911,8 +1009,9 @@ async function persistSettingsFromUI(successMessage: string) {
 
     // Update status
     lastTestedApiKey = "";
-    updateConnectionStatus(newSettings.geminiApiKey ? "untested" : "disconnected");
-    testApiKeyBtn.disabled = !newSettings.geminiApiKey;
+    const providerApiKey = getProviderApiKeyFromSettings(newSettings, newSettings.sttProvider);
+    updateConnectionStatus(providerApiKey ? "untested" : "disconnected");
+    testApiKeyBtn.disabled = !providerApiKey;
 
     showSaveStatus(successMessage);
   } catch (err) {
@@ -935,6 +1034,7 @@ async function handleResetToDefaults() {
 
   currentSettings = getDefaultSettings();
   populateUI(currentSettings);
+  updateApiKeyTextForProvider();
   setLiveModelHint("Enter API key to fetch models.");
   updateConnectionStatus("disconnected");
   testApiKeyBtn.disabled = true;

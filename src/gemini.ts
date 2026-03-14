@@ -1,8 +1,6 @@
 import { GoogleGenAI, Modality, Session, LiveServerMessage } from "@google/genai";
 import { debugLog, isDebugLoggingEnabled } from "./logger";
 
-export const LIVE_MODEL = "gemini-2.0-flash-live-001";
-
 export type TranscriptCallback = (text: string, isFinal: boolean) => void;
 
 export type StatusCallback = (
@@ -32,6 +30,14 @@ function getResponseModalityForModel(model: string): Modality {
 function toModelResource(model: string): string {
   const normalized = normalizeModelName(model);
   return `models/${normalized}`;
+}
+
+function assertModelSelected(model: string, context: string): string {
+  const normalized = normalizeModelName(model);
+  if (!normalized) {
+    throw new Error(`No model selected for ${context}`);
+  }
+  return normalized;
 }
 
 function extractApiErrorMessage(body: string): string {
@@ -271,9 +277,9 @@ export class GeminiTranscriber {
   private session: Session | null = null;
   private apiKey = "";
   private language = "auto";
-  private preferredLiveModel = LIVE_MODEL;
+  private preferredLiveModel = "";
   private fallbackLiveModels: string[] = [];
-  private activeLiveModel = LIVE_MODEL;
+  private activeLiveModel = "";
   private onTranscript: TranscriptCallback | null = null;
   private onStatus: StatusCallback | null = null;
   private currentTranscript = "";
@@ -297,19 +303,19 @@ export class GeminiTranscriber {
   configure(
     apiKey: string,
     language: string = "auto",
-    preferredLiveModel: string = LIVE_MODEL,
+    preferredLiveModel: string = "",
     fallbackLiveModels: string[] = []
   ) {
     this.apiKey = apiKey;
     this.language = language;
     this.ai = new GoogleGenAI({ apiKey });
-    this.preferredLiveModel = normalizeModelName(preferredLiveModel) || LIVE_MODEL;
+    this.preferredLiveModel = normalizeModelName(preferredLiveModel);
     this.fallbackLiveModels = fallbackLiveModels
       .map((m) => normalizeModelName(m))
       .filter((m) => Boolean(m));
 
     debugLog(
-      `Gemini configured (language='${language}', preferredModel='${this.preferredLiveModel}', fallbackCount=${this.fallbackLiveModels.length}, apiKeyPresent=${Boolean(apiKey)})`,
+      `Gemini configured (language='${language}', preferredModel='${this.preferredLiveModel || "(none)"}', fallbackCount=${this.fallbackLiveModels.length}, apiKeyPresent=${Boolean(apiKey)})`,
       "INFO"
     );
   }
@@ -328,12 +334,11 @@ export class GeminiTranscriber {
       new Set([
         this.preferredLiveModel,
         ...this.fallbackLiveModels,
-        LIVE_MODEL,
       ])
     ).filter((m) => Boolean(m));
 
     if (candidates.length === 0) {
-      throw new Error("No live model candidates available");
+      throw new Error("No model selected. Pick a model from the model dropdown first.");
     }
 
     const errors: string[] = [];
@@ -709,8 +714,7 @@ export async function validateApiKey(apiKey: string): Promise<void> {
     throw new Error("API key not configured");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  await ai.models.get({ model: "gemini-2.0-flash" });
+  await fetchLiveModels(apiKey);
 }
 
 function extractGenerateContentText(payload: unknown): string {
@@ -756,7 +760,8 @@ function extractGenerateContentText(payload: unknown): string {
 export async function transcribeWavBase64(
   apiKey: string,
   wavBase64: string,
-  language: string = "auto"
+  language: string = "auto",
+  model: string = ""
 ): Promise<string> {
   if (!apiKey) {
     throw new Error("API key not configured");
@@ -766,13 +771,15 @@ export async function transcribeWavBase64(
     return "";
   }
 
+  const selectedModel = assertModelSelected(model, "Gemini transcription");
+
   const languageInstruction =
     language === "auto"
       ? "Detect the spoken language automatically."
       : `The spoken language is ${language}.`;
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+    `https://generativelanguage.googleapis.com/v1beta/${toModelResource(selectedModel)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: "POST",
       headers: {
@@ -828,7 +835,7 @@ export async function transcribeWithLivePipeline(options: {
   const {
     apiKey,
     language = "auto",
-    preferredLiveModel = LIVE_MODEL,
+    preferredLiveModel = "",
     fallbackLiveModels = [],
     pcmChunksBase64,
     settleDelayMs = 1800,
