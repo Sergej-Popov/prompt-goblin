@@ -1,0 +1,325 @@
+/* ── Reset & Variables ─────────────────────────────────────── */
+:root {
+  --bg: #1a1a2e;
+  --bg-section: #16213e;
+  --bg-input: #0f1729;
+  --border: #2a2a4a;
+  --border-focus: #6c63ff;
+  --text: #e0e0e0;
+  --text-muted: #8888aa;
+  --text-heading: #ffffff;
+  --accent: #6c63ff;
+  --accent-hover: #7c73ff;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --error: #f87171;
+  --badge-beta: #f59e0b;
+  --badge-default: #6c63ff;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Cascadia Code", "Fira Code", "Consolas", monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-y: auto;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── Settings Container ───────────────────────────────────── */
+.settings-container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100vh;
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+.settings-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-heading);
+  letter-spacing: -0.02em;
+}
+
+.version {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Sections ─────────────────────────────────────────────── */
+.settings-section {
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-section h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Inputs ───────────────────────────────────────────────── */
+.field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: var(--font-mono);
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--border-focus);
+}
+
+input[type="number"] {
+  width: 80px;
+}
+
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238888aa' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.icon-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 16px;
+  line-height: 1;
+  transition: border-color 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  border-color: var(--border-focus);
+  color: var(--text);
+}
+
+/* ── Status ───────────────────────────────────────────────── */
+.status-row {
+  display: flex;
+  align-items: center;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-indicator.connected .status-dot {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
+.status-indicator.disconnected .status-dot {
+  background: var(--text-muted);
+}
+
+.status-indicator.error .status-dot {
+  background: var(--error);
+  box-shadow: 0 0 6px var(--error);
+}
+
+/* ── Hotkey ────────────────────────────────────────────────── */
+.hotkey-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+kbd {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-heading);
+  min-width: 28px;
+  text-align: center;
+}
+
+/* ── Radio & Checkbox ─────────────────────────────────────── */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio-label,
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.radio-label:hover,
+.checkbox-label:hover {
+  background: rgba(108, 99, 255, 0.08);
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.badge.beta {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--badge-beta);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge.default {
+  background: rgba(108, 99, 255, 0.15);
+  color: var(--badge-default);
+  border: 1px solid rgba(108, 99, 255, 0.3);
+}
+
+/* ── Inline Field ─────────────────────────────────────────── */
+.inline-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 32px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.inline-field input[type="number"] {
+  width: 70px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.unit {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── Hint Text ────────────────────────────────────────────── */
+.hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+.settings-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.primary-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.primary-btn:hover {
+  background: var(--accent-hover);
+}
+
+.primary-btn:active {
+  transform: scale(0.98);
+}
+
+.save-status {
+  font-size: 12px;
+  color: var(--success);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.save-status.visible {
+  opacity: 1;
+}

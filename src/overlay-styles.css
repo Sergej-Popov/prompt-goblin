@@ -1,0 +1,74 @@
+/* ── Overlay Window Styles ─────────────────────────────────── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  background: transparent;
+  overflow: hidden;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.overlay-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(20, 20, 40, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(108, 99, 255, 0.4);
+  border-radius: 24px;
+  padding: 8px 18px;
+  margin: 8px auto;
+  width: fit-content;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 15px rgba(108, 99, 255, 0.15);
+}
+
+/* ── Recording Dot ────────────────────────────────────────── */
+.recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f87171;
+  box-shadow: 0 0 8px #f87171;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* ── Label & Timer ────────────────────────────────────────── */
+.overlay-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  white-space: nowrap;
+}
+
+.overlay-timer {
+  font-size: 12px;
+  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  color: #8888aa;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ── Transcript Preview ───────────────────────────────────── */
+.overlay-transcript {
+  font-size: 11px;
+  color: rgba(200, 200, 220, 0.6);
+  text-align: center;
+  padding: 0 16px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.overlay-transcript.visible {
+  max-height: 24px;
+}
