@@ -106,8 +106,13 @@ jobs:
         env:
           NEW_TAG: ${{ steps.version.outputs.new_tag }}
         run: |
-          $tag = $env:NEW_TAG
-          if (git rev-parse $tag 2>$null) {
+          $tag = $env:NEW_TAG.Trim()
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            throw "NEW_TAG output is empty"
+          }
+
+          git show-ref --tags --verify --quiet "refs/tags/$tag"
+          if ($LASTEXITCODE -eq 0) {
             throw "Tag $tag already exists"
           }
 
