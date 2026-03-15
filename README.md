@@ -27,6 +27,12 @@ Development was done using OpenCode with a mixture of models, predominantly GPT-
 - Typing modes: incremental streaming or all-at-once on stop
 - Mic test tools: quick 5-second test, continuous live test, transcript preview, and playback
 
+## Privacy
+
+Prompt Goblin is privacy-oriented. It does not send your recordings, transcripts, or app logs to Prompt Goblin servers or to the project authors.
+
+Your audio and transcription data is only sent to the model provider you explicitly configure, such as OpenAI or Gemini.
+
 ## STT Models
 
 Gemini 2.5 Flash Native Audio Preview 12-2025 is currently the model that performs best.
