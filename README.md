@@ -1,12 +1,12 @@
 # Prompt Goblin
 
 <table>
-  <tr>
-    <td width="120" valign="top">
+  <tr style="border:0">
+    <td width="120" valign="top" style="border:0">
       <img src="public/settings-goblin-transparent.png" alt="Prompt Goblin icon" width="120" />
     </td>
-    <td valign="top">
-      Voice-to-text desktop app with pluggable providers (Gemini + OpenAI), built with Tauri + Vanilla TypeScript.<br /><br />
+    <td valign="top" style="border:0">
+      Voice-to-text desktop app with pluggable providers (Gemini + OpenAI), built with Tauri + Rust & TypeScript.<br /><br />
       <em>Goblin note: screaming, yapping, and dramatic rambling all count as valid "speaking" in this establishment.</em>
     </td>
   </tr>
@@ -89,3 +89,7 @@ Windows is the primary tested platform at the moment.
 MacOS and Ubuntu builds are not yet tested.
 
 If you test on MacOS or Ubuntu, please submit an issue with reproduction steps, environment details, logs, and screenshots etc.
+
+<img src="media/overlay.png" alt="Prompt Goblin Overlay" width="400" />
+
+<img src="media/app.png" alt="Prompt Goblin Interace" width="400" />

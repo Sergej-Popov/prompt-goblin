@@ -76,8 +76,7 @@ pub fn run() {
                     let x = (screen_width / 2.0 - 170.0).max(0.0);
                     let _ = overlay.set_position(tauri::PhysicalPosition::new(x as i32, 40));
                 }
-                // Make overlay ignore mouse events (click-through)
-                let _ = overlay.set_ignore_cursor_events(true);
+                let _ = overlay.set_ignore_cursor_events(false);
             }
 
             Ok(())

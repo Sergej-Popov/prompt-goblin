@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   drawWaveform,
   isWaveformColorScheme,
@@ -38,10 +39,24 @@ const overlayHud = document.getElementById("overlay-hud") as HTMLElement;
 const overlayHudModel = document.getElementById("overlay-hud-model") as HTMLElement;
 const overlayHudLatency = document.getElementById("overlay-hud-latency") as HTMLElement;
 const overlayHudConfidence = document.getElementById("overlay-hud-confidence") as HTMLElement;
+const overlayPill = document.getElementById("overlay-pill") as HTMLElement;
 let showDebugHud = false;
+
+function hideTranscriptPreview() {
+  overlayTranscript.textContent = "";
+  overlayTranscript.classList.remove("visible");
+}
 
 window.addEventListener("contextmenu", (event) => {
   event.preventDefault();
+});
+
+overlayPill.addEventListener("mousedown", (event) => {
+  if (event.button !== 0) {
+    return;
+  }
+
+  void getCurrentWindow().startDragging();
 });
 
 function formatTime(seconds: number): string {
@@ -127,6 +142,9 @@ function formatHudConfidence(
 
 function setHudVisibility() {
   overlayHud.style.display = showDebugHud ? "flex" : "none";
+  if (!showDebugHud) {
+    hideTranscriptPreview();
+  }
 }
 
 function resetHud() {
@@ -241,8 +259,7 @@ listen<{
   wavePhase = 0;
   resetHud();
   setOverlayState(event.payload?.state === "listening" ? "listening" : "loading");
-  overlayTranscript.textContent = "";
-  overlayTranscript.classList.remove("visible");
+  hideTranscriptPreview();
   startTimer();
 });
 
@@ -351,6 +368,11 @@ listen<{ rms: number }>("audio-chunk", (event) => {
 
 // Listen for transcript updates
 listen<{ text: string }>("transcript-update", (event) => {
+  if (!showDebugHud) {
+    hideTranscriptPreview();
+    return;
+  }
+
   const text = event.payload.text;
   if (text) {
     // Show last ~40 chars of transcript
@@ -358,7 +380,10 @@ listen<{ text: string }>("transcript-update", (event) => {
       text.length > 40 ? "..." + text.slice(-40) : text;
     overlayTranscript.textContent = displayText;
     overlayTranscript.classList.add("visible");
+    return;
   }
+
+  hideTranscriptPreview();
 });
 
 window.addEventListener("beforeunload", () => {

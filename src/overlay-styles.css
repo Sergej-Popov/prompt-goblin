@@ -30,6 +30,10 @@ body {
   padding: 8px 12px 10px;
   margin: 8px 0 0;
   box-shadow: none;
+  cursor: move;
+  user-select: none;
+  app-region: drag;
+  -webkit-app-region: drag;
 }
 
 .overlay-main-row {
