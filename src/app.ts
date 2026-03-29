@@ -502,6 +502,10 @@ function flushIncrementalTail() {
     return;
   }
 
+  if (settings.clipboardMode === "clipboard_only") {
+    return;
+  }
+
   const callIndex = incrementalTypeCallCount + 1;
   incrementalTypeCallCount = callIndex;
   incrementalTypeCharCount += tailText.length;
@@ -870,7 +874,7 @@ async function stopRecording() {
 
   if (settings.typingMode === "incremental") {
     const tailText = processIncrementalTranscriptForTyping(latestRawTranscript, true);
-    if (tailText) {
+    if (tailText && settings.clipboardMode !== "clipboard_only") {
       try {
         await typeText(tailText);
         incrementalTypeCallCount += 1;
@@ -881,10 +885,25 @@ async function stopRecording() {
       }
     }
 
-    // If any incremental chunks failed to type, fall back to clipboard with the full transcript
-    if (incrementalTypeFailureCount > 0) {
+    // Determine session outcome based on clipboardMode
+    if (settings.clipboardMode === "clipboard_only") {
+      // Skip all typing; deliver full transcript to clipboard now
+      const fullText = processFinalTranscriptForTyping(transcriber.getTranscript().trim());
+      if (fullText) {
+        try {
+          await copyToClipboard(fullText);
+          sessionOutcome = "clipboard_only";
+          debugLog(`Transcript copied to clipboard (clipboard_only incremental, ${fullText.length} chars)`, "INFO");
+          void emitOverlayEvent("session-toast", { message: "Text copied to clipboard. Paste to insert." });
+        } catch (clipErr) {
+          sessionOutcome = "failed";
+          debugLog(`Clipboard copy failed (clipboard_only incremental): ${String(clipErr)}`, "ERROR");
+        }
+      }
+    } else if (incrementalTypeFailureCount > 0) {
+      // If any incremental chunks failed to type, fall back to clipboard with the full transcript
       const mode = settings.clipboardMode;
-      if (mode === "typing_with_fallback" || mode === "typing_and_clipboard" || mode === "clipboard_only") {
+      if (mode === "typing_with_fallback" || mode === "typing_and_clipboard") {
         const fullText = processFinalTranscriptForTyping(transcriber.getTranscript().trim());
         if (fullText) {
           try {
@@ -903,7 +922,23 @@ async function stopRecording() {
         sessionOutcome = "failed";
       }
     } else if (incrementalTypeCharCount > 0) {
-      sessionOutcome = "typed";
+      if (settings.clipboardMode === "typing_and_clipboard") {
+        const fullText = processFinalTranscriptForTyping(transcriber.getTranscript().trim());
+        if (fullText) {
+          try {
+            await copyToClipboard(fullText);
+            sessionOutcome = "typed_and_clipboard";
+            debugLog(`Also copied transcript to clipboard (typing_and_clipboard incremental, ${fullText.length} chars)`, "INFO");
+          } catch (clipErr) {
+            debugLog(`Failed to copy to clipboard (typing_and_clipboard incremental): ${String(clipErr)}`, "ERROR");
+            sessionOutcome = "typed";
+          }
+        } else {
+          sessionOutcome = "typed";
+        }
+      } else {
+        sessionOutcome = "typed";
+      }
     }
   }
 
@@ -1134,7 +1169,7 @@ function onTranscript(text: string, isFinal: boolean) {
   // Incremental typing mode
   if (settings.typingMode === "incremental" && isRecording) {
     const newText = processIncrementalTranscriptForTyping(text, isFinal);
-    if (newText.length > 0) {
+    if (newText.length > 0 && settings.clipboardMode !== "clipboard_only") {
       const callIndex = incrementalTypeCallCount + 1;
       const typedChars = newText.length;
       const typedStartedAt = Date.now();
