@@ -806,6 +806,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     micTestController.handleMonitoringStatus(event.payload.monitoring);
   });
 
+  dom.versionBannerLink.addEventListener("click", (e) => {
+    e.preventDefault()
+    const url = dom.versionBannerLink.href
+    if (url) {
+      void openExternalUrl(url)
+    }
+  })
+
   checkLatestVersion("0.1.0").then((result) => {
     if (result.updateAvailable) {
       dom.versionBannerText.textContent = `Version ${result.latestVersion} is available.`
