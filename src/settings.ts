@@ -96,6 +96,7 @@ export interface Settings {
   customTextCommands: TextCommand[];
   holdBeforeType: boolean;
   holdBeforeTypeTimeoutMs: number;
+  privacyMode: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -153,6 +154,7 @@ const DEFAULTS: Settings = {
   customTextCommands: [],
   holdBeforeType: false,
   holdBeforeTypeTimeoutMs: 0,
+  privacyMode: false,
 };
 
 function isListeningDingSound(value: unknown): value is ListeningDingSound {
@@ -524,6 +526,11 @@ export async function loadSettings(): Promise<Settings> {
     settings.holdBeforeTypeTimeoutMs = holdBeforeTypeTimeoutMs;
   }
 
+  const privacyMode = await s.get<boolean>("privacyMode");
+  if (privacyMode !== undefined && privacyMode !== null) {
+    settings.privacyMode = privacyMode;
+  }
+
   return settings;
 }
 
@@ -561,6 +568,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await s.set("textCommands", [...DEFAULT_TEXT_COMMANDS, ...settings.customTextCommands]);
   await s.set("holdBeforeType", settings.holdBeforeType);
   await s.set("holdBeforeTypeTimeoutMs", settings.holdBeforeTypeTimeoutMs);
+  await s.set("privacyMode", settings.privacyMode);
   await s.save();
 }
 

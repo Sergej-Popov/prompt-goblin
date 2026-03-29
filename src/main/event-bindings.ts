@@ -212,6 +212,10 @@ export function setupMainEventBindings(options: EventBindingOptions) {
     settingsController.scheduleAutosave(0);
   });
 
+  dom.privacyModeCheckbox.addEventListener("change", () => {
+    settingsController.scheduleAutosave(0);
+  });
+
   dom.openDebugFolderBtn.addEventListener("click", async () => {
     await handleOpenDebugFolder();
   });

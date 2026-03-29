@@ -36,6 +36,7 @@ export interface SettingsFormSnapshot {
   listeningDingVolumePercent: string;
   holdBeforeType: boolean;
   holdBeforeTypeTimeoutSeconds: string;
+  privacyMode: boolean;
 }
 
 export interface AutosaveStatus {
@@ -143,6 +144,7 @@ export function buildSettingsFromForm(
     listeningDingVolume,
     holdBeforeType: form.holdBeforeType,
     holdBeforeTypeTimeoutMs,
+    privacyMode: form.privacyMode,
   };
 
   nextSettings.providers[activeProvider].apiKey = form.apiKey.trim();

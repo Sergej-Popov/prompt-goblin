@@ -31,6 +31,7 @@ function createForm(overrides: Partial<SettingsFormSnapshot> = {}): SettingsForm
     listeningDingVolumePercent: "35",
     holdBeforeType: false,
     holdBeforeTypeTimeoutSeconds: "0",
+    privacyMode: false,
     ...overrides,
   };
 }
@@ -193,5 +194,28 @@ describe("settings controller helpers", () => {
       createForm({ holdBeforeTypeTimeoutSeconds: "-5" })
     );
     expect(negativeResult.holdBeforeTypeTimeoutMs).toBe(0);
+  });
+
+  test("getDefaultSettings includes privacyMode defaulting to false", () => {
+    const defaults = getDefaultSettings();
+    expect(defaults.privacyMode).toBe(false);
+  });
+
+  test("buildSettingsFromForm propagates privacyMode from form", () => {
+    const currentSettings = getDefaultSettings();
+
+    const withPrivacy = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ privacyMode: true })
+    );
+    expect(withPrivacy.privacyMode).toBe(true);
+
+    const withoutPrivacy = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ privacyMode: false })
+    );
+    expect(withoutPrivacy.privacyMode).toBe(false);
   });
 });

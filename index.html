@@ -238,6 +238,15 @@
         </section>
 
         <section class="settings-section">
+          <h2>Privacy</h2>
+          <label class="checkbox-label">
+            <input type="checkbox" id="privacy-mode-checkbox" />
+            <span>Privacy mode</span>
+          </label>
+          <p class="hint">When enabled, transcript content is not written to debug logs. No transcript data is stored between sessions regardless of this setting — the app does not persist session history.</p>
+        </section>
+
+        <section class="settings-section">
           <h2>Typing Mode</h2>
           <div class="radio-group">
             <label class="radio-label">
@@ -425,6 +434,11 @@
             Source language is used for transcription. If target language is set, transcript correction translates the final all-at-once output into that language.
           </p>
         </section>
+      </div>
+
+      <div id="version-banner" class="version-banner" hidden>
+        <span id="version-banner-text"></span>
+        <a id="version-banner-link" class="version-banner-link" href="#" target="_blank" rel="noopener">See release</a>
       </div>
 
       <footer class="settings-footer">

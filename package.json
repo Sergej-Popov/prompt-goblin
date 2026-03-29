@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "bun run test:unit",
-    "test:unit": "bun test tests/gemini.test.ts tests/main-utils.test.ts tests/main-model-cache.test.ts tests/main-model-loader.test.ts tests/main-settings-controller.test.ts tests/api-key-controller.test.ts tests/event-bindings.test.ts tests/main-dom.test.ts tests/stt-service.test.ts tests/correction-service.test.ts tests/openai-provider.test.ts tests/text-commands.test.ts",
+    "test:unit": "bun test tests/gemini.test.ts tests/main-utils.test.ts tests/main-model-cache.test.ts tests/main-model-loader.test.ts tests/main-settings-controller.test.ts tests/api-key-controller.test.ts tests/event-bindings.test.ts tests/main-dom.test.ts tests/stt-service.test.ts tests/correction-service.test.ts tests/openai-provider.test.ts tests/text-commands.test.ts tests/version-check.test.ts",
     "test:integration": "bun test tests/gemini.integration.test.ts tests/openai.integration.test.ts",
     "test:e2e": "bun test tests/gemini.e2e.test.ts tests/openai.e2e.test.ts",
     "preview": "vite preview",

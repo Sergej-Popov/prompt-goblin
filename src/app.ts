@@ -839,10 +839,14 @@ async function stopRecording() {
   const correctedRawText = await maybeCorrectFinalTranscript(finalRawText);
   const finalText = processFinalTranscriptForTyping(correctedRawText);
   if (finalText) {
-    debugLog(
-      `Transcript preview: "${previewText(finalText)}" (raw: "${escapeWhitespaceForLog(finalText)}")`,
-      "INFO"
-    );
+    if (settings.privacyMode) {
+      debugLog(`Transcript ready (${finalText.length} chars) [content suppressed — privacy mode]`, "INFO");
+    } else {
+      debugLog(
+        `Transcript preview: "${previewText(finalText)}" (raw: "${escapeWhitespaceForLog(finalText)}")`,
+        "INFO"
+      );
+    }
   } else {
     debugLog("Transcript is empty after stop", "WARN");
   }

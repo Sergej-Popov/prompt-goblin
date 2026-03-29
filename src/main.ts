@@ -69,6 +69,7 @@ import {
   type SttProvider,
 } from "./settings";
 import { getProviderAuth, getProviderLabel, getProviderRuntime } from "./stt/service";
+import { checkLatestVersion } from "./version-check"
 
 let currentSettings: Settings;
 let dom: MainDom;
@@ -296,6 +297,7 @@ function readFormSnapshot(): SettingsFormSnapshot {
     listeningDingVolumePercent: dom.listeningDingVolumeInput.value,
     holdBeforeType: dom.holdBeforeTypeCheckbox.checked,
     holdBeforeTypeTimeoutSeconds: dom.holdBeforeTypeTimeoutInput.value,
+    privacyMode: dom.privacyModeCheckbox.checked,
   };
 }
 
@@ -802,5 +804,15 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   await listen<{ monitoring: boolean }>("mic-monitoring-status", (event) => {
     micTestController.handleMonitoringStatus(event.payload.monitoring);
+  });
+
+  checkLatestVersion("0.1.0").then((result) => {
+    if (result.updateAvailable) {
+      dom.versionBannerText.textContent = `Version ${result.latestVersion} is available.`
+      dom.versionBannerLink.href = result.releaseUrl
+      dom.versionBanner.hidden = false
+    }
+  }).catch(() => {
+    // version check is best-effort; ignore network failures silently
   });
 });

@@ -77,6 +77,10 @@ export interface MainDom {
   holdBeforeTypeCheckbox: HTMLInputElement;
   holdBeforeTypeTimeoutInput: HTMLInputElement;
   holdBeforeTypeTimeoutField: HTMLElement;
+  privacyModeCheckbox: HTMLInputElement;
+  versionBanner: HTMLElement;
+  versionBannerText: HTMLElement;
+  versionBannerLink: HTMLAnchorElement;
   resetDefaultsBtn: HTMLButtonElement;
   appToast: HTMLElement;
   windowMinimizeBtn: HTMLButtonElement | null;
@@ -175,6 +179,10 @@ export function getMainDom(doc: Document): MainDom {
     holdBeforeTypeCheckbox: byId<HTMLInputElement>("hold-before-type-checkbox", doc),
     holdBeforeTypeTimeoutInput: byId<HTMLInputElement>("hold-before-type-timeout", doc),
     holdBeforeTypeTimeoutField: byId<HTMLElement>("hold-before-type-timeout-field", doc),
+    privacyModeCheckbox: byId<HTMLInputElement>("privacy-mode-checkbox", doc),
+    versionBanner: byId<HTMLElement>("version-banner", doc),
+    versionBannerText: byId<HTMLElement>("version-banner-text", doc),
+    versionBannerLink: byId<HTMLAnchorElement>("version-banner-link", doc),
     resetDefaultsBtn: byId<HTMLButtonElement>("reset-defaults-btn", doc),
     appToast: byId<HTMLElement>("app-toast", doc),
     windowMinimizeBtn: byIdOptional<HTMLButtonElement>("window-minimize-btn", doc),
@@ -249,6 +257,7 @@ export function populateUI(dom: MainDom, settings: Settings) {
   dom.holdBeforeTypeCheckbox.checked = settings.holdBeforeType;
   dom.holdBeforeTypeTimeoutInput.value = String(settings.holdBeforeTypeTimeoutMs / 1000);
   dom.holdBeforeTypeTimeoutField.hidden = !settings.holdBeforeType;
+  dom.privacyModeCheckbox.checked = settings.privacyMode;
 }
 
 export function setLiveModelHint(dom: MainDom, text: string) {
