@@ -284,6 +284,7 @@ function readFormSnapshot(): SettingsFormSnapshot {
     debugLoggingEnabled: dom.debugLoggingCheckbox.checked,
     typingMode: getSelectedTypingMode(),
     recordingMode: getSelectedRecordingMode(dom),
+    clipboardMode: dom.clipboardModeSelect.value as Settings["clipboardMode"],
     transcriptCorrectionEnabled: dom.transcriptCorrectionCheckbox.checked,
     autoStopOnSilence: dom.autoStopCheckbox.checked,
     silenceTimeoutSeconds: dom.silenceTimeoutInput.value,

@@ -140,6 +140,7 @@ export function setupMainEventBindings(options: EventBindingOptions) {
   dom.languageSelect.addEventListener("change", () => settingsController.scheduleAutosave(0));
   dom.targetLanguageSelect.addEventListener("change", () => settingsController.scheduleAutosave(0));
   dom.lineBreakModeSelect.addEventListener("change", () => settingsController.scheduleAutosave(0));
+  dom.clipboardModeSelect.addEventListener("change", () => settingsController.scheduleAutosave(0));
   dom.listeningDingCheckbox.addEventListener("change", () => {
     applyListeningDingControlState();
     if (dom.listeningDingCheckbox.checked) {

@@ -113,6 +113,7 @@ function createDocumentStub() {
     "language-select",
     "target-language-select",
     "line-break-mode-select",
+    "clipboard-mode-select",
     "listening-ding-checkbox",
     "listening-ding-sound-select",
     "listening-ding-volume",

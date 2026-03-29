@@ -68,6 +68,7 @@ function createDom(): MainDom {
     languageSelect: createEmitterElement({}) as any,
     targetLanguageSelect: createEmitterElement({}) as any,
     lineBreakModeSelect: createEmitterElement({}) as any,
+    clipboardModeSelect: createEmitterElement({}) as any,
     listeningDingCheckbox: createEmitterElement({ checked: true }) as any,
     listeningDingSoundSelect: createEmitterElement({ value: "chime", disabled: false }) as any,
     listeningDingVolumeInput: createEmitterElement({ value: "60", disabled: false }) as any,
@@ -202,6 +203,7 @@ describe("event bindings", () => {
     await (dom.listeningDingCheckbox as any).emit("change");
     await (dom.listeningDingSoundSelect as any).emit("change");
     await (dom.listeningDingVolumeInput as any).emit("input");
+    await (dom.clipboardModeSelect as any).emit("change");
 
     expect(updateTypingModeHint).toHaveBeenCalled();
     expect(updateTranscriptCorrectionUI).toHaveBeenCalled();

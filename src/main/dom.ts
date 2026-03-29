@@ -69,6 +69,7 @@ export interface MainDom {
   languageSelect: HTMLSelectElement;
   targetLanguageSelect: HTMLSelectElement;
   lineBreakModeSelect: HTMLSelectElement;
+  clipboardModeSelect: HTMLSelectElement;
   listeningDingCheckbox: HTMLInputElement;
   listeningDingSoundSelect: HTMLSelectElement;
   listeningDingVolumeInput: HTMLInputElement;
@@ -163,6 +164,7 @@ export function getMainDom(doc: Document): MainDom {
     languageSelect: byId<HTMLSelectElement>("language-select", doc),
     targetLanguageSelect: byId<HTMLSelectElement>("target-language-select", doc),
     lineBreakModeSelect: byId<HTMLSelectElement>("line-break-mode-select", doc),
+    clipboardModeSelect: byId<HTMLSelectElement>("clipboard-mode-select", doc),
     listeningDingCheckbox: byId<HTMLInputElement>("listening-ding-checkbox", doc),
     listeningDingSoundSelect: byId<HTMLSelectElement>("listening-ding-sound-select", doc),
     listeningDingVolumeInput: byId<HTMLInputElement>("listening-ding-volume", doc),
@@ -231,6 +233,7 @@ export function populateUI(dom: MainDom, settings: Settings) {
   dom.languageSelect.value = settings.language;
   dom.targetLanguageSelect.value = settings.targetLanguage;
   dom.lineBreakModeSelect.value = settings.lineBreakMode;
+  dom.clipboardModeSelect.value = settings.clipboardMode;
   dom.listeningDingCheckbox.checked = settings.playListeningDing;
   dom.listeningDingSoundSelect.value = settings.listeningDingSound;
   dom.listeningDingVolumeInput.value = String(settings.listeningDingVolume);

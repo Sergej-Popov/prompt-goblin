@@ -68,6 +68,7 @@ let lastRecoveryAttemptAt = 0;
 let recoveryAttemptCount = 0;
 let recoverySuccessCount = 0;
 let recoveryFailureCount = 0;
+let sessionOutcome: "typed" | "clipboard_only" | "typed_and_clipboard" | "fallback_clipboard" | "cancelled" | "empty" | "failed" = "empty";
 let latestMicRms = 0;
 let connectedAt = 0;
 let firstTranscriptAt = 0;
@@ -228,6 +229,79 @@ function processFinalTranscriptForTyping(text: string): string {
 
 function typeText(text: string) {
   return invoke("type_text", { text, lineBreakMode: settings.lineBreakMode });
+}
+
+function copyToClipboard(text: string) {
+  return invoke("copy_to_clipboard", { text });
+}
+
+async function deliverTranscript(finalText: string): Promise<void> {
+  if (!finalText) {
+    return;
+  }
+
+  const mode = settings.clipboardMode;
+
+  // clipboard_only: skip typing, just copy
+  if (mode === "clipboard_only") {
+    try {
+      await copyToClipboard(finalText);
+      sessionOutcome = "clipboard_only";
+      debugLog(`Transcript copied to clipboard (clipboard_only, ${finalText.length} chars)`, "INFO");
+      void emitOverlayEvent("session-toast", { message: "Text copied to clipboard. Paste to insert." });
+    } catch (err) {
+      debugLog(`Failed to copy to clipboard: ${String(err)}`, "ERROR");
+    }
+    return;
+  }
+
+  // typing_and_clipboard: type AND copy
+  if (mode === "typing_and_clipboard") {
+    try {
+      await typeText(finalText);
+      sessionOutcome = "typed_and_clipboard";
+      debugLog(`Typed transcript (typing_and_clipboard, ${finalText.length} chars)`, "INFO");
+    } catch (err) {
+      debugLog(`Failed to type text (typing_and_clipboard): ${String(err)}`, "ERROR");
+    }
+    try {
+      await copyToClipboard(finalText);
+      debugLog(`Transcript also copied to clipboard (typing_and_clipboard)`, "INFO");
+    } catch (err) {
+      debugLog(`Failed to copy to clipboard (typing_and_clipboard): ${String(err)}`, "ERROR");
+    }
+    return;
+  }
+
+  // typing_with_fallback: try typing, fall back to clipboard on error
+  if (mode === "typing_with_fallback") {
+    try {
+      await typeText(finalText);
+      sessionOutcome = "typed";
+      debugLog(`Typed transcript (typing_with_fallback, ${finalText.length} chars)`, "INFO");
+    } catch (err) {
+      debugLog(`Typing failed (typing_with_fallback): ${String(err)}; falling back to clipboard`, "WARN");
+      try {
+        await copyToClipboard(finalText);
+        sessionOutcome = "fallback_clipboard";
+        debugLog(`Fallback clipboard copy succeeded (${finalText.length} chars)`, "INFO");
+        void emitOverlayEvent("session-toast", { message: "Typing failed — text copied to clipboard. Paste to insert." });
+      } catch (clipErr) {
+        debugLog(`Fallback clipboard copy also failed: ${String(clipErr)}`, "ERROR");
+      }
+    }
+    return;
+  }
+
+  // typing_only (default): type only, no clipboard
+  try {
+    await typeText(finalText);
+    sessionOutcome = "typed";
+    debugLog(`Typed transcript (typing_only, ${finalText.length} chars)`, "INFO");
+  } catch (err) {
+    sessionOutcome = "failed";
+    debugLog(`Failed to type text: ${String(err)}`, "ERROR");
+  }
 }
 
 function buildModelCandidates(preferredModel: string, fallbackModels: string[]): string[] {
@@ -562,6 +636,7 @@ async function startRecording() {
   incrementalTypeCallCount = 0;
   incrementalTypeCharCount = 0;
   incrementalTypeFailureCount = 0;
+  sessionOutcome = "empty";
   lastAudioTurnBoundaryAt = recordingStartedAt;
   audioTurnBoundaryCount = 0;
   recoveryInProgress = false;
@@ -694,10 +769,6 @@ async function stopRecording() {
   const finalRawText = transcriber.getTranscript().trim();
   const correctedRawText = await maybeCorrectFinalTranscript(finalRawText);
   const finalText = processFinalTranscriptForTyping(correctedRawText);
-  debugLog(
-    `Stopping recording summary: duration=${durationMs}ms, chunks=${recordingChunkCount}, ~audioBytes=${recordingApproxAudioBytes}, transcriptChars=${finalText.length}, typedCalls=${incrementalTypeCallCount}, typedChars=${incrementalTypeCharCount}, typeFailures=${incrementalTypeFailureCount}, turnBoundaries=${audioTurnBoundaryCount}, recoveryAttempts=${recoveryAttemptCount}, recoverySuccess=${recoverySuccessCount}, recoveryFailures=${recoveryFailureCount}`,
-    "INFO"
-  );
   if (finalText) {
     debugLog(
       `Transcript preview: "${previewText(finalText)}" (raw: "${escapeWhitespaceForLog(finalText)}")`,
@@ -707,13 +778,7 @@ async function stopRecording() {
     debugLog("Transcript is empty after stop", "WARN");
   }
   if (finalText && settings.typingMode === "all_at_once") {
-    try {
-      await typeText(finalText);
-      debugLog(`Typed final transcript (${finalText.length} chars)`, "INFO");
-    } catch (err) {
-      console.error("Failed to type text:", err);
-      debugLog(`Failed to type text: ${String(err)}`, "ERROR");
-    }
+    await deliverTranscript(finalText);
   }
 
   if (settings.typingMode === "incremental") {
@@ -728,7 +793,37 @@ async function stopRecording() {
         debugLog(`Failed to type final incremental tail: ${String(err)}`, "ERROR");
       }
     }
+
+    // If any incremental chunks failed to type, fall back to clipboard with the full transcript
+    if (incrementalTypeFailureCount > 0) {
+      const mode = settings.clipboardMode;
+      if (mode === "typing_with_fallback" || mode === "typing_and_clipboard" || mode === "clipboard_only") {
+        const fullText = processFinalTranscriptForTyping(transcriber.getTranscript().trim());
+        if (fullText) {
+          try {
+            await copyToClipboard(fullText);
+            sessionOutcome = mode === "typing_and_clipboard" ? "typed_and_clipboard" : "fallback_clipboard";
+            debugLog(`Incremental typing had ${incrementalTypeFailureCount} failure(s); full transcript copied to clipboard as fallback`, "WARN");
+            if (mode !== "typing_and_clipboard") {
+              void emitOverlayEvent("session-toast", { message: "Typing failed — text copied to clipboard. Paste to insert." });
+            }
+          } catch (clipErr) {
+            sessionOutcome = "failed";
+            debugLog(`Incremental fallback clipboard copy failed: ${String(clipErr)}`, "ERROR");
+          }
+        }
+      } else {
+        sessionOutcome = "failed";
+      }
+    } else if (incrementalTypeCharCount > 0) {
+      sessionOutcome = "typed";
+    }
   }
+
+  debugLog(
+    `Session summary: outcome=${sessionOutcome}, deliveryMode=${settings.clipboardMode}, duration=${durationMs}ms, transcriptChars=${finalRawText.length}, deliveredChars=${finalText.length}, typedCalls=${incrementalTypeCallCount}, typedChars=${incrementalTypeCharCount}, typeFailures=${incrementalTypeFailureCount}, chunks=${recordingChunkCount}, ~audioBytes=${recordingApproxAudioBytes}, turnBoundaries=${audioTurnBoundaryCount}, recoveryAttempts=${recoveryAttemptCount}, recoverySuccess=${recoverySuccessCount}, recoveryFailures=${recoveryFailureCount}`,
+    "INFO"
+  );
 
   // Disconnect from provider
   await transcriber.disconnect();
@@ -784,6 +879,12 @@ async function cancelRecording() {
 
   isRecording = false;
   debugLog("Recording cancelled by user — transcript discarded", "INFO");
+  sessionOutcome = "cancelled";
+  const cancelDurationMs = recordingStartedAt > 0 ? Date.now() - recordingStartedAt : 0;
+  debugLog(
+    `Session summary: outcome=cancelled, deliveryMode=${settings.clipboardMode}, duration=${cancelDurationMs}ms, transcriptChars=${latestRawTranscript.length}, chunks=${recordingChunkCount}`,
+    "INFO"
+  );
 
   // Clear timers
   if (silenceTimer) {

@@ -83,6 +83,7 @@ export interface Settings {
   debugLoggingEnabled: boolean;
   typingMode: "all_at_once" | "incremental";
   recordingMode: "toggle" | "push_to_talk";
+  clipboardMode: "typing_only" | "typing_with_fallback" | "typing_and_clipboard" | "clipboard_only";
   autoStopOnSilence: boolean;
   autoStopSilenceMs: number;
   language: string;
@@ -137,6 +138,7 @@ const DEFAULTS: Settings = {
   debugLoggingEnabled: false,
   typingMode: "incremental",
   recordingMode: "toggle",
+  clipboardMode: "typing_only",
   autoStopOnSilence: true,
   autoStopSilenceMs: 4000,
   language: "auto",
@@ -351,6 +353,16 @@ export async function loadSettings(): Promise<Settings> {
     settings.recordingMode = recordingMode;
   }
 
+  const clipboardMode = await s.get<string>("clipboardMode");
+  if (
+    clipboardMode === "typing_only" ||
+    clipboardMode === "typing_with_fallback" ||
+    clipboardMode === "typing_and_clipboard" ||
+    clipboardMode === "clipboard_only"
+  ) {
+    settings.clipboardMode = clipboardMode;
+  }
+
   const microphoneDeviceId = await s.get<string>("microphoneDeviceId");
   if (microphoneDeviceId !== undefined && microphoneDeviceId !== null) {
     settings.microphoneDeviceId = microphoneDeviceId;
@@ -516,6 +528,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await s.set("debugLoggingEnabled", settings.debugLoggingEnabled);
   await s.set("typingMode", settings.typingMode);
   await s.set("recordingMode", settings.recordingMode);
+  await s.set("clipboardMode", settings.clipboardMode);
   await s.set("autoStopOnSilence", settings.autoStopOnSilence);
   await s.set("autoStopSilenceMs", settings.autoStopSilenceMs);
   await s.set("language", settings.language);

@@ -28,6 +28,7 @@ pub fn run() {
             http_proxy::http_fetch,
             keyboard::type_text,
             keyboard::type_text_incremental,
+            keyboard::copy_to_clipboard,
         ])
         .manage(audio::AudioState::default())
         .manage(debug_log::DebugLogState::default())

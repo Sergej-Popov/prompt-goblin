@@ -18,6 +18,7 @@ function createForm(overrides: Partial<SettingsFormSnapshot> = {}): SettingsForm
     debugLoggingEnabled: true,
     typingMode: "all_at_once",
     recordingMode: "toggle",
+    clipboardMode: "typing_only",
     transcriptCorrectionEnabled: true,
     autoStopOnSilence: false,
     silenceTimeoutSeconds: "5.5",
@@ -84,5 +85,43 @@ describe("settings controller helpers", () => {
     expect(getRecordingInputGain("999")).toBe(3);
     expect(getRecordingInputGain("1")).toBe(0.25);
     expect(getRecordingInputGain("bad")).toBe(1);
+  });
+
+  test("buildSettingsFromForm propagates clipboardMode from form", () => {
+    const currentSettings = getDefaultSettings();
+    currentSettings.clipboardMode = "typing_only";
+
+    const nextTypingAndClipboard = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ clipboardMode: "typing_and_clipboard" })
+    );
+    expect(nextTypingAndClipboard.clipboardMode).toBe("typing_and_clipboard");
+
+    const nextClipboardOnly = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ clipboardMode: "clipboard_only" })
+    );
+    expect(nextClipboardOnly.clipboardMode).toBe("clipboard_only");
+
+    const nextFallback = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ clipboardMode: "typing_with_fallback" })
+    );
+    expect(nextFallback.clipboardMode).toBe("typing_with_fallback");
+
+    const nextTypingOnly = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ clipboardMode: "typing_only" })
+    );
+    expect(nextTypingOnly.clipboardMode).toBe("typing_only");
+  });
+
+  test("getDefaultSettings includes clipboardMode defaulting to typing_only", () => {
+    const defaults = getDefaultSettings();
+    expect(defaults.clipboardMode).toBe("typing_only");
   });
 });

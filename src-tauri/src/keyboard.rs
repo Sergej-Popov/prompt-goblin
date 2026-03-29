@@ -420,6 +420,17 @@ fn send_backspace_native() -> Result<(), String> {
     Ok(())
 }
 
+/// Copy text to the system clipboard.
+#[tauri::command]
+pub fn copy_to_clipboard(text: String) -> Result<(), String> {
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|e| format!("Failed to open clipboard: {e}"))?;
+    clipboard
+        .set_text(text)
+        .map_err(|e| format!("Failed to set clipboard text: {e}"))?;
+    Ok(())
+}
+
 // ── Stub for other platforms ────────────────────────────────────────
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]

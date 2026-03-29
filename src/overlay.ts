@@ -472,6 +472,20 @@ listen("recording-cancelled", () => {
   stopTimer();
 });
 
+listen<{ message: string }>("session-toast", (event) => {
+  const msg = event.payload?.message;
+  if (!msg) return;
+
+  // Show message in the overlay label area briefly
+  const prev = overlayLabel.textContent;
+  overlayLabel.textContent = msg;
+  setTimeout(() => {
+    if (overlayLabel.textContent === msg) {
+      overlayLabel.textContent = prev ?? "";
+    }
+  }, 3000);
+});
+
 listen<{
   playListeningDing?: boolean;
   listeningDingSound?: string;

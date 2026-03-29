@@ -24,6 +24,7 @@ export interface SettingsFormSnapshot {
   debugLoggingEnabled: boolean;
   typingMode: Settings["typingMode"];
   recordingMode: Settings["recordingMode"];
+  clipboardMode: Settings["clipboardMode"];
   transcriptCorrectionEnabled: boolean;
   autoStopOnSilence: boolean;
   silenceTimeoutSeconds: string;
@@ -124,6 +125,7 @@ export function buildSettingsFromForm(
     debugLoggingEnabled: form.debugLoggingEnabled,
     typingMode: form.typingMode,
     recordingMode: form.recordingMode,
+    clipboardMode: form.clipboardMode,
     autoStopOnSilence: form.autoStopOnSilence,
     autoStopSilenceMs,
     language: form.language,

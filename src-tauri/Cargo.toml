@@ -22,6 +22,7 @@ cpal = "0.15"
 base64 = "0.22"
 time = { version = "0.3", features = ["formatting", "local-offset"] }
 ureq = { version = "3", features = ["native-tls"] }
+arboard = "3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61", features = [
