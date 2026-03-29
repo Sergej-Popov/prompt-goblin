@@ -34,6 +34,8 @@ export interface SettingsFormSnapshot {
   playListeningDing: boolean;
   listeningDingSound: ListeningDingSound;
   listeningDingVolumePercent: string;
+  holdBeforeType: boolean;
+  holdBeforeTypeTimeoutSeconds: string;
 }
 
 export interface AutosaveStatus {
@@ -102,6 +104,11 @@ export function buildSettingsFromForm(
       ? listeningDingVolumePercent
       : currentSettings.listeningDingVolume;
 
+  const holdBeforeTypeTimeoutRaw = parseInt(form.holdBeforeTypeTimeoutSeconds, 10);
+  const holdBeforeTypeTimeoutMs = Number.isFinite(holdBeforeTypeTimeoutRaw)
+    ? Math.min(30000, Math.max(0, holdBeforeTypeTimeoutRaw * 1000))
+    : currentSettings.holdBeforeTypeTimeoutMs;
+
   const nextSettings: Settings = {
     ...currentSettings,
     sttProvider: activeProvider,
@@ -134,6 +141,8 @@ export function buildSettingsFromForm(
     playListeningDing: form.playListeningDing,
     listeningDingSound: form.listeningDingSound,
     listeningDingVolume,
+    holdBeforeType: form.holdBeforeType,
+    holdBeforeTypeTimeoutMs,
   };
 
   nextSettings.providers[activeProvider].apiKey = form.apiKey.trim();

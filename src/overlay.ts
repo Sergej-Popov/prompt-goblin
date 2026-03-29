@@ -7,7 +7,7 @@ import {
   type WaveformColorScheme,
   type WaveformStyle,
 } from "@goblin-systems/goblin-design-system";
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 let timerInterval: ReturnType<typeof setInterval> | null = null;
@@ -23,7 +23,7 @@ let currentWaveformColorScheme: WaveformColorScheme = "aurora";
 let playListeningDing = true;
 let listeningDingSound: "chime" | "soft" | "digital" = "chime";
 let listeningDingVolume = 60;
-let currentOverlayState: "loading" | "listening" | "transcribing" | "correcting" | "done" =
+let currentOverlayState: "loading" | "listening" | "transcribing" | "correcting" | "review" | "done" =
   "done";
 let dingAudioContext: AudioContext | null = null;
 
@@ -48,7 +48,34 @@ const overlayHudModel = document.getElementById("overlay-hud-model") as HTMLElem
 const overlayHudLatency = document.getElementById("overlay-hud-latency") as HTMLElement;
 const overlayHudConfidence = document.getElementById("overlay-hud-confidence") as HTMLElement;
 const overlayPill = document.getElementById("overlay-pill") as HTMLElement;
+const overlayReviewActions = document.getElementById("overlay-review-actions") as HTMLElement;
+const reviewConfirmBtn = document.getElementById("review-confirm-btn") as HTMLButtonElement;
+const reviewCancelBtn = document.getElementById("review-cancel-btn") as HTMLButtonElement;
 let showDebugHud = false;
+
+let reviewCountdownTimer: ReturnType<typeof setInterval> | null = null;
+let reviewAutoConfirmTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearReviewCountdown() {
+  if (reviewCountdownTimer) {
+    clearInterval(reviewCountdownTimer);
+    reviewCountdownTimer = null;
+  }
+  if (reviewAutoConfirmTimer) {
+    clearTimeout(reviewAutoConfirmTimer);
+    reviewAutoConfirmTimer = null;
+  }
+  reviewConfirmBtn.textContent = "Type it";
+}
+
+function hideReviewActions() {
+  clearReviewCountdown();
+  overlayReviewActions.hidden = true;
+}
+
+function showReviewActions() {
+  overlayReviewActions.hidden = false;
+}
 
 function hideTranscriptPreview() {
   overlayTranscript.textContent = "";
@@ -64,6 +91,34 @@ overlayPill.addEventListener("mousedown", (event) => {
   }
 
   void getCurrentWindow().startDragging();
+});
+
+reviewConfirmBtn.addEventListener("click", () => {
+  hideReviewActions();
+  hideTranscriptPreview();
+  void emit("review-confirmed", {});
+  setOverlayState("done");
+  setTimeout(async () => {
+    try {
+      await getCurrentWindow().hide();
+    } catch {
+      // ignore
+    }
+  }, 300);
+});
+
+reviewCancelBtn.addEventListener("click", () => {
+  hideReviewActions();
+  hideTranscriptPreview();
+  void emit("review-cancelled", {});
+  setOverlayState("done", "Cancelled");
+  setTimeout(async () => {
+    try {
+      await getCurrentWindow().hide();
+    } catch {
+      // ignore
+    }
+  }, 300);
 });
 
 function formatTime(seconds: number): string {
@@ -89,13 +144,13 @@ function stopTimer() {
 }
 
 function setOverlayState(
-  state: "loading" | "listening" | "transcribing" | "correcting" | "done",
+  state: "loading" | "listening" | "transcribing" | "correcting" | "review" | "done",
   customLabel?: string
 ) {
   const enteredListening = currentOverlayState !== "listening" && state === "listening";
   currentOverlayState = state;
 
-  recordingDot.classList.remove("loading", "listening", "transcribing", "correcting", "done");
+  recordingDot.classList.remove("loading", "listening", "transcribing", "correcting", "review", "done");
   recordingDot.classList.add(state);
 
   if (enteredListening && playListeningDing) {
@@ -124,6 +179,11 @@ function setOverlayState(
 
   if (state === "correcting") {
     overlayLabel.textContent = "Correcting...";
+    return;
+  }
+
+  if (state === "review") {
+    overlayLabel.textContent = "Review...";
     return;
   }
 
@@ -454,6 +514,7 @@ listen("recording-stopped", () => {
 
   overlayRecordingActive = false;
   targetMicLevel = 0;
+  hideReviewActions();
   resetHud();
   setOverlayState("done");
   stopTimer();
@@ -467,6 +528,7 @@ listen("recording-cancelled", () => {
 
   overlayRecordingActive = false;
   targetMicLevel = 0;
+  hideReviewActions();
   resetHud();
   setOverlayState("done", "Cancelled");
   stopTimer();
@@ -485,6 +547,57 @@ listen<{ message: string }>("session-toast", (event) => {
     }
   }, 3000);
 });
+
+listen<{ text: string; correctionChanged: boolean; timeoutMs: number }>(
+  "recording-review",
+  (event) => {
+    const { text, correctionChanged, timeoutMs } = event.payload;
+
+    stopTimer();
+
+    setOverlayState("review");
+    if (correctionChanged) {
+      overlayLabel.textContent = "Review... (refined)";
+    }
+
+    // Show transcript text
+    overlayTranscript.textContent = text;
+    overlayTranscript.classList.add("visible");
+
+    showReviewActions();
+
+    // Start countdown if timeoutMs > 0
+    if (timeoutMs > 0) {
+      let remainingMs = timeoutMs;
+      const updateBtn = () => {
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        reviewConfirmBtn.textContent = `Type it (${remainingSec}s)`;
+      };
+      updateBtn();
+
+      reviewCountdownTimer = setInterval(() => {
+        remainingMs -= 200;
+        if (remainingMs <= 0) {
+          clearReviewCountdown();
+          // Auto-confirm: emit and transition
+          void emit("review-confirmed", {});
+          hideReviewActions();
+          hideTranscriptPreview();
+          setOverlayState("done");
+          setTimeout(async () => {
+            try {
+              await getCurrentWindow().hide();
+            } catch {
+              // ignore
+            }
+          }, 300);
+        } else {
+          updateBtn();
+        }
+      }, 200);
+    }
+  }
+);
 
 listen<{
   playListeningDing?: boolean;

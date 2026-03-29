@@ -283,6 +283,27 @@
         </section>
 
         <section class="settings-section">
+          <h2>Review Mode</h2>
+          <label class="checkbox-label">
+            <input type="checkbox" id="hold-before-type-checkbox" />
+            <span>Hold before typing (review mode)</span>
+          </label>
+          <label class="inline-field" id="hold-before-type-timeout-field" for="hold-before-type-timeout" hidden>
+            <span>Auto-type after</span>
+            <input
+              type="number"
+              id="hold-before-type-timeout"
+              min="0"
+              max="30"
+              step="1"
+              value="0"
+            />
+            <span class="unit">seconds</span>
+          </label>
+          <p class="hint">When enabled, Prompt Goblin shows the final transcript before typing it. You can confirm, cancel, or let it auto-type after the timeout (0 = never auto-type). Only applies to Type all at once mode.</p>
+        </section>
+
+        <section class="settings-section">
           <div class="section-heading-row">
             <h2>Transcript Correction</h2>
             <span class="badge beta">beta</span>

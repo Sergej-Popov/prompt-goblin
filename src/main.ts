@@ -294,6 +294,8 @@ function readFormSnapshot(): SettingsFormSnapshot {
     playListeningDing: dom.listeningDingCheckbox.checked,
     listeningDingSound: dom.listeningDingSoundSelect.value as Settings["listeningDingSound"],
     listeningDingVolumePercent: dom.listeningDingVolumeInput.value,
+    holdBeforeType: dom.holdBeforeTypeCheckbox.checked,
+    holdBeforeTypeTimeoutSeconds: dom.holdBeforeTypeTimeoutInput.value,
   };
 }
 

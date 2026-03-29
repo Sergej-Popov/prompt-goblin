@@ -203,6 +203,15 @@ export function setupMainEventBindings(options: EventBindingOptions) {
     settingsController.scheduleAutosave(0);
   });
 
+  dom.holdBeforeTypeCheckbox.addEventListener("change", () => {
+    dom.holdBeforeTypeTimeoutField.hidden = !dom.holdBeforeTypeCheckbox.checked;
+    settingsController.scheduleAutosave(0);
+  });
+
+  dom.holdBeforeTypeTimeoutInput.addEventListener("input", () => {
+    settingsController.scheduleAutosave(0);
+  });
+
   dom.openDebugFolderBtn.addEventListener("click", async () => {
     await handleOpenDebugFolder();
   });

@@ -223,8 +223,77 @@ function emitOverlayHudModel(provider: string, model: string) {
   });
 }
 
+/**
+ * Returns true if the difference between two strings is "meaningful" —
+ * length diff > 5 OR the strings differ by >10% of the longer string length.
+ */
+function isMeaningfulDiff(a: string, b: string): boolean {
+  if (a === b) return false
+  const lenDiff = Math.abs(a.length - b.length)
+  if (lenDiff > 5) return true
+  const longer = Math.max(a.length, b.length)
+  if (longer === 0) return false
+  return lenDiff / longer > 0.1
+}
+
+async function waitForReviewDecision(
+  finalText: string,
+  correctionChanged: boolean,
+  timeoutMs: number
+): Promise<"confirmed" | "cancelled"> {
+  return new Promise((resolve) => {
+    let settled = false
+    let countdownTimer: ReturnType<typeof setTimeout> | null = null
+    let unlistenConfirm: (() => void) | null = null
+    let unlistenCancel: (() => void) | null = null
+
+    const settle = (outcome: "confirmed" | "cancelled") => {
+      if (settled) return
+      settled = true
+      if (countdownTimer) {
+        clearTimeout(countdownTimer)
+        countdownTimer = null
+      }
+      unlistenConfirm?.()
+      unlistenCancel?.()
+      resolve(outcome)
+    }
+
+    // Register listeners — listen() returns an unlisten function via a Promise
+    listen<Record<string, never>>("review-confirmed", () => {
+      settle("confirmed")
+    }).then((unlisten) => {
+      unlistenConfirm = unlisten
+      // If already settled (e.g., timeout fired before listen resolved), clean up immediately
+      if (settled) unlisten()
+    }).catch(() => {})
+
+    listen<Record<string, never>>("review-cancelled", () => {
+      settle("cancelled")
+    }).then((unlisten) => {
+      unlistenCancel = unlisten
+      if (settled) unlisten()
+    }).catch(() => {})
+
+    // Auto-confirm countdown
+    if (timeoutMs > 0) {
+      countdownTimer = setTimeout(() => {
+        countdownTimer = null
+        settle("confirmed")
+      }, timeoutMs)
+    }
+
+    // Emit the review event to the overlay after setting up listeners
+    void emitOverlayEvent("recording-review", {
+      text: finalText,
+      correctionChanged,
+      timeoutMs,
+    })
+  })
+}
+
 function processFinalTranscriptForTyping(text: string): string {
-  return applyTextCommands(text, settings).trim();
+  return applyTextCommands(text, settings).trim()
 }
 
 function typeText(text: string) {
@@ -778,7 +847,21 @@ async function stopRecording() {
     debugLog("Transcript is empty after stop", "WARN");
   }
   if (finalText && settings.typingMode === "all_at_once") {
-    await deliverTranscript(finalText);
+    if (settings.holdBeforeType && finalText) {
+      const correctionChanged = isMeaningfulDiff(finalRawText, correctedRawText)
+      const decision = await waitForReviewDecision(
+        finalText,
+        correctionChanged,
+        settings.holdBeforeTypeTimeoutMs
+      )
+      if (decision === "confirmed") {
+        await deliverTranscript(finalText)
+      } else {
+        sessionOutcome = "cancelled"
+      }
+    } else {
+      await deliverTranscript(finalText)
+    }
   }
 
   if (settings.typingMode === "incremental") {

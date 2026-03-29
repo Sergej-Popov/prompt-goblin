@@ -94,6 +94,8 @@ export interface Settings {
   listeningDingVolume: number;
   textCommandsEnabled: boolean;
   customTextCommands: TextCommand[];
+  holdBeforeType: boolean;
+  holdBeforeTypeTimeoutMs: number;
 }
 
 const DEFAULTS: Settings = {
@@ -149,6 +151,8 @@ const DEFAULTS: Settings = {
   listeningDingVolume: 60,
   textCommandsEnabled: true,
   customTextCommands: [],
+  holdBeforeType: false,
+  holdBeforeTypeTimeoutMs: 0,
 };
 
 function isListeningDingSound(value: unknown): value is ListeningDingSound {
@@ -505,6 +509,21 @@ export async function loadSettings(): Promise<Settings> {
     });
   }
 
+  const holdBeforeType = await s.get<boolean>("holdBeforeType");
+  if (holdBeforeType !== undefined && holdBeforeType !== null) {
+    settings.holdBeforeType = holdBeforeType;
+  }
+
+  const holdBeforeTypeTimeoutMs = await s.get<number>("holdBeforeTypeTimeoutMs");
+  if (
+    holdBeforeTypeTimeoutMs !== undefined &&
+    holdBeforeTypeTimeoutMs !== null &&
+    Number.isFinite(holdBeforeTypeTimeoutMs) &&
+    holdBeforeTypeTimeoutMs >= 0
+  ) {
+    settings.holdBeforeTypeTimeoutMs = holdBeforeTypeTimeoutMs;
+  }
+
   return settings;
 }
 
@@ -540,6 +559,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await s.set("textCommandsEnabled", settings.textCommandsEnabled);
   await s.set("customTextCommands", settings.customTextCommands);
   await s.set("textCommands", [...DEFAULT_TEXT_COMMANDS, ...settings.customTextCommands]);
+  await s.set("holdBeforeType", settings.holdBeforeType);
+  await s.set("holdBeforeTypeTimeoutMs", settings.holdBeforeTypeTimeoutMs);
   await s.save();
 }
 

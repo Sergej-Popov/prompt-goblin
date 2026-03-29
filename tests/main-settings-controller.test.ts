@@ -10,6 +10,7 @@ import {
 function createForm(overrides: Partial<SettingsFormSnapshot> = {}): SettingsFormSnapshot {
   return {
     apiKey: "  new-key  ",
+    providerOption: "gemini",
     hotkey: " Ctrl + Shift + K ",
     liveModel: "live-next",
     correctionModel: "correct-next",
@@ -28,6 +29,8 @@ function createForm(overrides: Partial<SettingsFormSnapshot> = {}): SettingsForm
     playListeningDing: false,
     listeningDingSound: "digital",
     listeningDingVolumePercent: "35",
+    holdBeforeType: false,
+    holdBeforeTypeTimeoutSeconds: "0",
     ...overrides,
   };
 }
@@ -123,5 +126,72 @@ describe("settings controller helpers", () => {
   test("getDefaultSettings includes clipboardMode defaulting to typing_only", () => {
     const defaults = getDefaultSettings();
     expect(defaults.clipboardMode).toBe("typing_only");
+  });
+
+  test("getDefaultSettings includes holdBeforeType defaulting to false and holdBeforeTypeTimeoutMs to 0", () => {
+    const defaults = getDefaultSettings();
+    expect(defaults.holdBeforeType).toBe(false);
+    expect(defaults.holdBeforeTypeTimeoutMs).toBe(0);
+  });
+
+  test("buildSettingsFromForm handles holdBeforeType true/false", () => {
+    const currentSettings = getDefaultSettings();
+
+    const withReview = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ holdBeforeType: true, holdBeforeTypeTimeoutSeconds: "0" })
+    );
+    expect(withReview.holdBeforeType).toBe(true);
+
+    const withoutReview = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ holdBeforeType: false, holdBeforeTypeTimeoutSeconds: "0" })
+    );
+    expect(withoutReview.holdBeforeType).toBe(false);
+  });
+
+  test("buildSettingsFromForm converts holdBeforeTypeTimeoutSeconds from seconds to ms", () => {
+    const currentSettings = getDefaultSettings();
+
+    const result = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ holdBeforeType: true, holdBeforeTypeTimeoutSeconds: "5" })
+    );
+    expect(result.holdBeforeTypeTimeoutMs).toBe(5000);
+  });
+
+  test("buildSettingsFromForm clamps holdBeforeTypeTimeoutMs to [0, 30000]", () => {
+    const currentSettings = getDefaultSettings();
+
+    const zeroResult = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ holdBeforeTypeTimeoutSeconds: "0" })
+    );
+    expect(zeroResult.holdBeforeTypeTimeoutMs).toBe(0);
+
+    const maxResult = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ holdBeforeTypeTimeoutSeconds: "30" })
+    );
+    expect(maxResult.holdBeforeTypeTimeoutMs).toBe(30000);
+
+    const overMaxResult = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ holdBeforeTypeTimeoutSeconds: "999" })
+    );
+    expect(overMaxResult.holdBeforeTypeTimeoutMs).toBe(30000);
+
+    const negativeResult = buildSettingsFromForm(
+      currentSettings,
+      "gemini",
+      createForm({ holdBeforeTypeTimeoutSeconds: "-5" })
+    );
+    expect(negativeResult.holdBeforeTypeTimeoutMs).toBe(0);
   });
 });
